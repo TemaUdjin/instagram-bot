@@ -58,9 +58,8 @@ app.post('/webhook', (req, res) => {
             const text = event.message.text;
             console.log(`📩 Message from ${senderId}: ${text}`);
 
-            // Отправляем автоответ
-            const reply = `Спасибо за сообщение! Вы написали: "${text}"`;
-            sendMessage(senderId, reply);
+            // Отправляем простой ответ
+            sendMessage(senderId, 'hello');
           }
         });
       }
