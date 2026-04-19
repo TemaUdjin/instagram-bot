@@ -1,9 +1,34 @@
 const express = require('express');
+const axios = require('axios');
+require('dotenv').config();
 const app = express();
 
 app.use(express.json());
 
-const VERIFY_TOKEN = 'my_secret_token_123';
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
+const BUSINESS_ACCOUNT_ID = process.env.BUSINESS_ACCOUNT_ID;
+
+// Функция для отправки ответа
+async function sendMessage(recipientId, text) {
+  try {
+    const response = await axios.post(
+      `https://graph.instagram.com/v25.0/${BUSINESS_ACCOUNT_ID}/messages`,
+      {
+        messaging_type: 'RESPONSE',
+        recipient: { id: recipientId },
+        message: { text: text }
+      },
+      {
+        params: { access_token: PAGE_ACCESS_TOKEN }
+      }
+    );
+    console.log(`✉️  Ответ отправлен пользователю ${recipientId}`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Ошибка отправки:', error.response?.data || error.message);
+  }
+}
 
 // Webhook verification (Meta calls this once when you connect)
 app.get('/webhook', (req, res) => {
@@ -28,10 +53,14 @@ app.post('/webhook', (req, res) => {
       const messaging = entry.messaging;
       if (messaging) {
         messaging.forEach(event => {
-          if (event.message) {
+          if (event.message && !event.message.is_echo) {
             const senderId = event.sender.id;
             const text = event.message.text;
             console.log(`📩 Message from ${senderId}: ${text}`);
+
+            // Отправляем автоответ
+            const reply = `Спасибо за сообщение! Вы написали: "${text}"`;
+            sendMessage(senderId, reply);
           }
         });
       }
