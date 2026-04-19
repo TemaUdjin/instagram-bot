@@ -8,6 +8,7 @@ app.use(express.json());
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const BUSINESS_ACCOUNT_ID = process.env.BUSINESS_ACCOUNT_ID;
+const BOT_ENABLED = process.env.BOT_ENABLED !== 'false';
 
 // Функция для отправки ответа
 async function sendMessage(recipientId, text) {
@@ -69,7 +70,11 @@ app.post('/webhook', (req, res) => {
             const text = event.message.text;
             console.log(`📩 Message from ${senderId}: ${text}`);
 
-            // Отправляем простой ответ
+            if (!BOT_ENABLED) {
+              console.log('🔇 Bot is disabled, skipping reply');
+              return;
+            }
+
             sendMessage(senderId, 'hello');
           }
         });
