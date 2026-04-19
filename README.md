@@ -1,53 +1,71 @@
-# Instagram DM Bot
+# Instagram DM Bot — Production Ready для Railway
 
-Бот получает сообщения из Instagram DM и отвечает автоматически.
+Бот получает сообщения из Instagram DM и автоматически отвечает.
 
-## Установка
+## Установка на Railway
 
+1. Создай аккаунт на [railway.app](https://railway.app)
+2. Подключи свой GitHub репозиторий
+3. Railway автоматически развернёт бота
+
+**Или через CLI:**
 ```bash
-cd ~/instagram-bot
-pnpm install
+npm install -g @railway/cli
+railway login
+railway init
+railway up
 ```
 
-## Настройка
+## Environment переменные
 
-1. Скопируй `.env.example` в `.env`
-2. Заполни PAGE_ACCESS_TOKEN из Meta Developer
-3. Убедись что ngrok запущен
+На Railway добавь эти переменные (в Project Settings → Variables):
 
-## Запуск
-
-**Терминал 1 — сервер:**
-```bash
-cd ~/instagram-bot && node index.js
+```
+PAGE_ACCESS_TOKEN=твой_токен
+VERIFY_TOKEN=my_secret_token_123
+BUSINESS_ACCOUNT_ID=17841400228014487
 ```
 
-**Терминал 2 — ngrok:**
-```bash
-~/bin/ngrok http 3000
-```
+## Meta Developer настройка
+
+В Meta Developer обнови Webhook:
+
+**Callback URL:** `https://твой-railway-домен/webhook`
+
+Railway автоматически сгенерирует тебе домен вида: `instagram-bot-production.up.railway.app`
 
 ## Статус
 
-- ✅ Webhook подтверждён (GET /webhook)
-- ✅ Сообщения принимаются (POST /webhook)
-- ✅ Первое сообщение получено: "Handstand"
-- ⏳ Отправка ответов — в процессе
+✅ Node.js server  
+✅ Express webhook  
+✅ Instagram messages API integration  
+✅ Auto-reply "hello"  
 
-## Структура
+## Дальше
+
+- Изменить текст ответа
+- Добавить БД для логирования
+- Интегрировать с другими сервисами
+
+## Файлы проекта
 
 ```
 instagram-bot/
-├── index.js           # Главный сервер
+├── index.js           # Основной код
 ├── package.json       # Зависимости
-├── .env.example       # Пример конфига
-└── README.md          # Этот файл
+├── .env               # Секретные данные (локальные)
+├── .env.example       # Шаблон (не содержит секретов)
+├── Procfile           # Инструкция для Railway
+├── README.md          # Этот файл
+└── .gitignore         # Исключить .env из Git
 ```
 
-## ngrok URL
+## Первый запуск
 
-Текущий: `https://operate-rust-dreary.ngrok-free.dev`
+После развертывания на Railway:
 
-Meta Webhook Callback: `https://operate-rust-dreary.ngrok-free.dev/webhook`
+1. Обнови Webhook URL в Meta Developer
+2. Напиши тестовое сообщение в DM
+3. Бот должен ответить "hello"
 
-Verify Token: `my_secret_token_123`
+Всё! 🚀
