@@ -103,6 +103,19 @@ async function sendInstagramMessage(recipientId, text) {
   }
 }
 
+app.get('/test-instagram/:userId', async (req, res) => {
+  try {
+    const response = await axios.post(
+      `https://graph.instagram.com/v19.0/${BUSINESS_ACCOUNT_ID}/messages`,
+      { recipient: { id: req.params.userId }, message: { text: 'test' } },
+      { params: { access_token: PAGE_ACCESS_TOKEN } }
+    );
+    res.json({ ok: true, data: response.data });
+  } catch (err) {
+    res.json({ ok: false, error: err.response?.data || err.message });
+  }
+});
+
 app.get('/test-claude', async (req, res) => {
   try {
     const result = await generateReply('How much is a session?');
