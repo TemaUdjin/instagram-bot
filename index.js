@@ -18,7 +18,10 @@ const PAGE_ID = process.env.PAGE_ID;
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const LOG_FILE = path.join(__dirname, 'conversations.json');
 
+// keyed by instagram sender_id → { suggestedReply }
 const pendingReplies = {};
+// keyed by telegram user_id → instagram sender_id
+const selectedSender = {};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -180,6 +183,29 @@ async function sendTelegramMessage(text) {
   }
 }
 
+async function sendTelegramMessageWithButton(text, instagramSenderId) {
+  try {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+      chat_id: CHAT_ID,
+      text,
+      reply_markup: {
+        inline_keyboard: [[{ text: '💬 Reply', callback_data: `reply_${instagramSenderId}` }]]
+      }
+    });
+  } catch (error) {
+    console.error('[Telegram send error]', error.response?.data || error.message);
+  }
+}
+
+async function answerCallbackQuery(callbackQueryId, text) {
+  try {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/answerCallbackQuery`, {
+      callback_query_id: callbackQueryId,
+      text
+    });
+  } catch {}
+}
+
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
 function buildClientCard(user, senderId) {
@@ -323,23 +349,21 @@ app.post('/webhook', async (req, res) => {
       const clientName = user?.name || user?.username || null;
       const history = getHistory(senderId, 5);
 
-      await sendTelegramMessage(
-        `New Instagram DM:\n\n${clientCard}\n\nHistory:\n${formatHistory(history)}\n\nMessage:\n"${text}"\n\n⏳ Generating reply...`
+      await sendTelegramMessageWithButton(
+        `New Instagram DM:\n\n${clientCard}\n\nHistory:\n${formatHistory(history)}\n\nMessage:\n"${text}"`,
+        senderId
       );
 
       try {
         const suggested = await generateReply(text, clientName);
-        const key = Date.now().toString();
-        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested, clientMessage: text };
+        pendingReplies[senderId] = { suggestedReply: suggested };
+        log('Suggested reply stored', { senderId, suggested });
 
-        await sendTelegramMessage(
-          `🤖 Suggested reply:\n"${suggested}"\n\nSend your own text to reply.\nSend "+" to accept.`
-        );
+        await sendTelegramMessage(`🤖 Suggested reply:\n"${suggested}"\n\nClick Reply above, then send your text or "+" to accept.`);
       } catch (err) {
         log('Claude error', err.message);
-        const key = Date.now().toString();
-        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: null, clientMessage: text };
-        await sendTelegramMessage(`⚠️ Claude unavailable. Reply manually with your text.`);
+        pendingReplies[senderId] = { suggestedReply: null };
+        await sendTelegramMessage(`⚠️ Claude unavailable. Click Reply above, then send your text.`);
       }
     }
   }
@@ -348,36 +372,55 @@ app.post('/webhook', async (req, res) => {
 // ─── Routes: Telegram replies ─────────────────────────────────────────────────
 
 app.post('/telegram', async (req, res) => {
-  const message = req.body.message;
-  if (!message || !message.text) return res.sendStatus(200);
+  res.sendStatus(200);
+  const body = req.body;
 
-  const text = message.text.trim();
-  const keys = Object.keys(pendingReplies);
+  // Handle inline button click
+  if (body.callback_query) {
+    const query = body.callback_query;
+    const telegramUserId = String(query.from.id);
+    const data = query.data;
 
-  if (keys.length === 0) {
-    await sendTelegramMessage('⚠️ No pending Instagram messages to reply to.');
-    return res.sendStatus(200);
+    if (data.startsWith('reply_')) {
+      const targetSenderId = data.slice('reply_'.length);
+      selectedSender[telegramUserId] = targetSenderId;
+      log('Reply target selected', { telegramUserId, targetSenderId });
+      await answerCallbackQuery(query.id, '✅ Selected');
+      await sendTelegramMessage(`💬 Reply mode ON\nSending to: ${targetSenderId}\n\nSend your text or "+" to use suggested reply.`);
+    }
+    return;
   }
 
-  const lastKey = keys[keys.length - 1];
-  const { instagramUserId, suggestedReply, clientMessage } = pendingReplies[lastKey];
-  delete pendingReplies[lastKey];
+  // Handle text message
+  const message = body.message;
+  if (!message || !message.text) return;
 
-  const finalReply = text === '+' ? suggestedReply : text;
+  const text = message.text.trim();
+  const telegramUserId = String(message.from.id);
+  const targetSenderId = selectedSender[telegramUserId];
+
+  if (!targetSenderId) {
+    await sendTelegramMessage('⚠️ No sender selected. Click the Reply button on a message first.');
+    return;
+  }
+
+  const pending = pendingReplies[targetSenderId];
+  const finalReply = text === '+' ? pending?.suggestedReply : text;
 
   if (!finalReply) {
     await sendTelegramMessage('⚠️ No suggested reply available. Send the text you want to send.');
-    pendingReplies[lastKey] = { instagramUserId, suggestedReply, clientMessage };
-    return res.sendStatus(200);
+    return;
   }
 
-  const result = await sendInstagramMessage(instagramUserId, finalReply);
+  log('Sending reply', { telegramUserId, targetSenderId, finalReply });
+
+  const result = await sendInstagramMessage(targetSenderId, finalReply);
   if (result.ok) {
-    appendMessage(instagramUserId, 'outgoing', finalReply);
-    await sendTelegramMessage(`✅ Sent to Instagram:\n"${finalReply}"`);
+    appendMessage(targetSenderId, 'outgoing', finalReply);
+    delete selectedSender[telegramUserId];
+    delete pendingReplies[targetSenderId];
+    await sendTelegramMessage(`✅ Sent to Instagram (${targetSenderId}):\n"${finalReply}"`);
   }
-
-  res.sendStatus(200);
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
