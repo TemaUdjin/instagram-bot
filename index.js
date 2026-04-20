@@ -133,11 +133,12 @@ function buildClientCard(user, senderId) {
 // Debug endpoints
 app.get('/test-instagram/:userId', async (req, res) => {
   try {
-    const response = await axios.post(
-      `https://graph.instagram.com/v19.0/${BUSINESS_ACCOUNT_ID}/messages`,
-      { recipient: { id: req.params.userId }, message: { text: 'test' } },
-      { params: { access_token: PAGE_ACCESS_TOKEN } }
-    );
+    const url = `https://graph.facebook.com/v19.0/${PAGE_ID}/messages`;
+    const payload = { recipient: { id: req.params.userId }, message: { text: 'test from bot' } };
+    console.log(`Test send to ${url}, recipient: ${req.params.userId}`);
+    const response = await axios.post(url, payload, {
+      params: { access_token: PAGE_ACCESS_TOKEN }
+    });
     res.json({ ok: true, data: response.data });
   } catch (err) {
     res.json({ ok: false, error: err.response?.data || err.message });
