@@ -103,6 +103,11 @@ async function sendInstagramMessage(recipientId, text) {
   }
 }
 
+app.get('/test-telegram', async (req, res) => {
+  await sendTelegramMessage('✅ Railway → Telegram работает!');
+  res.json({ sent: true });
+});
+
 app.get('/health', (req, res) => {
   res.json({
     telegram_token: !!TELEGRAM_TOKEN,
