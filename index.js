@@ -339,8 +339,14 @@ app.post('/webhook', async (req, res) => {
       if (!event.message || event.message.is_echo) continue;
 
       const senderId = event.sender.id;
+      const recipientId = event.recipient.id;
       const text = event.message.text || '(no text)';
-      log('Incoming DM', { senderId, text, entryId: entry.id });
+      log('Incoming DM', { senderId, recipientId, text, entryId: entry.id });
+
+      if (senderId === PAGE_ID || senderId === BUSINESS_ACCOUNT_ID) {
+        log('Ignored self message', { senderId, text });
+        continue;
+      }
 
       appendMessage(senderId, 'incoming', text);
 
