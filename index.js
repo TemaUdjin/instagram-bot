@@ -22,13 +22,32 @@ const pendingReplies = {};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function saveConversation(clientMessage, finalReply) {
-  let log = [];
+function loadConversations() {
   if (fs.existsSync(LOG_FILE)) {
-    try { log = JSON.parse(fs.readFileSync(LOG_FILE, 'utf8')); } catch {}
+    try { return JSON.parse(fs.readFileSync(LOG_FILE, 'utf8')); } catch {}
   }
-  log.push({ date: new Date().toISOString(), client: clientMessage, reply: finalReply });
-  fs.writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
+  return {};
+}
+
+function appendMessage(senderId, type, text) {
+  const data = loadConversations();
+  if (!data[senderId]) data[senderId] = [];
+  data[senderId].push({ type, text, time: new Date().toISOString() });
+  fs.writeFileSync(LOG_FILE, JSON.stringify(data, null, 2));
+}
+
+function getHistory(senderId, limit = 5) {
+  const data = loadConversations();
+  const msgs = data[senderId] || [];
+  return msgs.slice(-limit);
+}
+
+function formatHistory(history) {
+  if (history.length === 0) return '(no previous messages)';
+  return history.map(m => {
+    const arrow = m.type === 'incoming' ? '👤' : '🤖';
+    return `${arrow} ${m.text}`;
+  }).join('\n');
 }
 
 function removeDashes(text) {
@@ -297,12 +316,15 @@ app.post('/webhook', async (req, res) => {
       const text = event.message.text || '(no text)';
       log('Incoming DM', { senderId, text, entryId: entry.id });
 
+      appendMessage(senderId, 'incoming', text);
+
       const user = await getInstagramUser(senderId);
       const clientCard = buildClientCard(user, senderId);
       const clientName = user?.name || user?.username || null;
+      const history = getHistory(senderId, 5);
 
       await sendTelegramMessage(
-        `New Instagram DM:\n\n${clientCard}\n\nMessage:\n"${text}"\n\n⏳ Generating reply...`
+        `New Instagram DM:\n\n${clientCard}\n\nHistory:\n${formatHistory(history)}\n\nMessage:\n"${text}"\n\n⏳ Generating reply...`
       );
 
       try {
@@ -351,7 +373,7 @@ app.post('/telegram', async (req, res) => {
 
   const result = await sendInstagramMessage(instagramUserId, finalReply);
   if (result.ok) {
-    saveConversation(clientMessage, finalReply);
+    appendMessage(instagramUserId, 'outgoing', finalReply);
     await sendTelegramMessage(`✅ Sent to Instagram:\n"${finalReply}"`);
   }
 
