@@ -13,6 +13,7 @@ const CHAT_ID = process.env.CHAT_ID;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const BUSINESS_ACCOUNT_ID = process.env.BUSINESS_ACCOUNT_ID;
+const PAGE_ID = process.env.PAGE_ID;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const LOG_FILE = path.join(__dirname, 'conversations.json');
@@ -101,27 +102,19 @@ async function sendTelegramMessage(text) {
 
 async function sendInstagramMessage(recipientId, text) {
   const payload = { recipient: { id: recipientId }, message: { text } };
-  const endpoints = [
-    `https://graph.instagram.com/v21.0/${BUSINESS_ACCOUNT_ID}/messages`,
-    `https://graph.instagram.com/v19.0/${BUSINESS_ACCOUNT_ID}/messages`,
-    `https://graph.facebook.com/v19.0/me/messages`,
-  ];
+  const url = `https://graph.facebook.com/v19.0/${PAGE_ID}/messages`;
 
-  for (const url of endpoints) {
-    try {
-      console.log(`📤 Trying: ${url}`);
-      console.log(`📤 Payload: ${JSON.stringify(payload)}`);
-      const res = await axios.post(url, payload, {
-        params: { access_token: PAGE_ACCESS_TOKEN }
-      });
-      console.log(`✅ Instagram success (${url}):`, JSON.stringify(res.data));
-      await sendTelegramMessage(`✅ Sent via ${url.includes('facebook') ? 'Facebook' : 'Instagram'} API`);
-      return;
-    } catch (err) {
-      const errData = err.response?.data || err.message;
-      console.error(`❌ Failed (${url}):`, JSON.stringify(errData));
-      await sendTelegramMessage(`❌ Failed ${url.split('/')[2]}: ${JSON.stringify(errData)}`);
-    }
+  try {
+    console.log(`📤 Sending to: ${url}`);
+    console.log(`📤 Payload: ${JSON.stringify(payload)}`);
+    const res = await axios.post(url, payload, {
+      params: { access_token: PAGE_ACCESS_TOKEN }
+    });
+    console.log(`✅ Instagram success:`, JSON.stringify(res.data));
+  } catch (err) {
+    const errData = err.response?.data || err.message;
+    console.error(`❌ Instagram error:`, JSON.stringify(errData));
+    await sendTelegramMessage(`❌ Instagram send failed: ${JSON.stringify(errData)}`);
   }
 }
 
