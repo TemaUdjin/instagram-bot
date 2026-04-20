@@ -100,16 +100,14 @@ async function sendTelegramMessage(text) {
   }
 }
 
-async function sendInstagramMessage(recipientId, text, accountId) {
-  const senderId = accountId || BUSINESS_ACCOUNT_ID;
-  const url = `https://graph.instagram.com/v19.0/${senderId}/messages`;
-  console.log(`Sending Instagram message via account ${senderId} to ${recipientId}`);
+async function sendInstagramMessage(recipientId, text) {
+  const url = `https://graph.facebook.com/v18.0/me/messages`;
+  const payload = { recipient: { id: recipientId }, message: { text } };
+  console.log(`Sending to ${url}, payload:`, JSON.stringify(payload));
   try {
-    const res = await axios.post(
-      url,
-      { recipient: { id: recipientId }, message: { text } },
-      { params: { access_token: PAGE_ACCESS_TOKEN } }
-    );
+    const res = await axios.post(url, payload, {
+      params: { access_token: PAGE_ACCESS_TOKEN }
+    });
     console.log(`✅ Instagram sent:`, JSON.stringify(res.data));
   } catch (err) {
     const errData = err.response?.data || err.message;
@@ -221,12 +219,9 @@ app.post('/webhook', async (req, res) => {
       if (!event.message || event.message.is_echo) continue;
 
       const senderId = event.sender.id;
-      const recipientId = event.recipient.id;
       const text = event.message.text || '(no text)';
 
-      console.log('SENDER:', senderId, '| RECIPIENT:', recipientId, '| ENTRY:', entryAccountId);
-
-      const accountIdForSend = recipientId || entryAccountId || BUSINESS_ACCOUNT_ID;
+      console.log('SENDER:', senderId, '| RECIPIENT:', event.recipient?.id, '| ENTRY:', entryAccountId);
 
       const user = await getInstagramUser(senderId);
       const clientCard = buildClientCard(user, senderId);
@@ -239,7 +234,7 @@ app.post('/webhook', async (req, res) => {
       try {
         const suggested = await generateReply(text, clientName);
         const key = Date.now().toString();
-        pendingReplies[key] = { instagramUserId: senderId, accountId: accountIdForSend, suggestedReply: suggested, clientMessage: text };
+        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested, clientMessage: text };
 
         await sendTelegramMessage(
           `🤖 Suggested reply:\n"${suggested}"\n\nSend your own text to reply.\nSend "+" to accept this suggestion.`
@@ -247,7 +242,7 @@ app.post('/webhook', async (req, res) => {
       } catch (err) {
         console.error('Claude error:', err.message);
         const key = Date.now().toString();
-        pendingReplies[key] = { instagramUserId: senderId, accountId: accountIdForSend, suggestedReply: null, clientMessage: text };
+        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: null, clientMessage: text };
         await sendTelegramMessage(`⚠️ Claude unavailable. Reply manually.`);
       }
     }
@@ -267,12 +262,12 @@ app.post('/telegram', async (req, res) => {
   }
 
   const lastKey = keys[keys.length - 1];
-  const { instagramUserId, accountId, suggestedReply, clientMessage } = pendingReplies[lastKey];
+  const { instagramUserId, suggestedReply, clientMessage } = pendingReplies[lastKey];
   delete pendingReplies[lastKey];
 
   const finalReply = text === '+' ? suggestedReply : text;
 
-  await sendInstagramMessage(instagramUserId, finalReply, accountId);
+  await sendInstagramMessage(instagramUserId, finalReply);
   saveConversation(clientMessage, finalReply);
   await sendTelegramMessage(`✅ Sent: "${finalReply}"`);
 
