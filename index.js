@@ -116,32 +116,37 @@ app.get('/webhook', (req, res) => {
 });
 
 // Входящие сообщения из Instagram
-app.post('/webhook', (req, res) => {
+app.post('/webhook', async (req, res) => {
+  res.sendStatus(200);
+
   const body = req.body;
-  if (body.object !== 'instagram') return res.sendStatus(404);
+  if (body.object !== 'instagram') return;
 
-  body.entry.forEach(entry => {
+  for (const entry of body.entry) {
     const messaging = entry.messaging;
-    if (!messaging) return;
+    if (!messaging) continue;
 
-    messaging.forEach(async event => {
-      if (!event.message || event.message.is_echo) return;
+    for (const event of messaging) {
+      if (!event.message || event.message.is_echo) continue;
 
       const senderId = event.sender.id;
       const text = event.message.text || '(без текста)';
       console.log(`📩 Instagram от ${senderId}: ${text}`);
 
-      const suggested = await generateReply(text);
-      const key = Date.now().toString();
-      pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested, clientMessage: text };
+      try {
+        const suggested = await generateReply(text);
+        const key = Date.now().toString();
+        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested, clientMessage: text };
 
-      await sendTelegramMessage(
-        `📩 Клиент:\n"${text}"\n\n🤖 Claude предлагает:\n"${suggested}"\n\n— Отправь свой текст чтобы ответить\n— Отправь "+" чтобы принять предложение`
-      );
-    });
-  });
-
-  res.sendStatus(200);
+        await sendTelegramMessage(
+          `📩 Клиент:\n"${text}"\n\n🤖 Claude предлагает:\n"${suggested}"\n\n— Отправь свой текст чтобы ответить\n— Отправь "+" чтобы принять предложение`
+        );
+      } catch (err) {
+        console.error('Ошибка обработки сообщения:', err.message);
+        await sendTelegramMessage(`📩 Клиент написал:\n"${text}"\n\n⚠️ Claude недоступен. Ответь вручную.`);
+      }
+    }
+  }
 });
 
 // Твои ответы из Telegram → в Instagram
