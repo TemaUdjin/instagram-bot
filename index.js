@@ -100,15 +100,28 @@ async function sendTelegramMessage(text) {
 }
 
 async function sendInstagramMessage(recipientId, text) {
-  try {
-    await axios.post(
-      `https://graph.instagram.com/v19.0/${BUSINESS_ACCOUNT_ID}/messages`,
-      { recipient: { id: recipientId }, message: { text } },
-      { params: { access_token: PAGE_ACCESS_TOKEN } }
-    );
-    console.log('✅ Sent to Instagram');
-  } catch (error) {
-    console.error('❌ Instagram error:', error.response?.data);
+  const payload = { recipient: { id: recipientId }, message: { text } };
+  const endpoints = [
+    `https://graph.instagram.com/v21.0/${BUSINESS_ACCOUNT_ID}/messages`,
+    `https://graph.instagram.com/v19.0/${BUSINESS_ACCOUNT_ID}/messages`,
+    `https://graph.facebook.com/v19.0/me/messages`,
+  ];
+
+  for (const url of endpoints) {
+    try {
+      console.log(`📤 Trying: ${url}`);
+      console.log(`📤 Payload: ${JSON.stringify(payload)}`);
+      const res = await axios.post(url, payload, {
+        params: { access_token: PAGE_ACCESS_TOKEN }
+      });
+      console.log(`✅ Instagram success (${url}):`, JSON.stringify(res.data));
+      await sendTelegramMessage(`✅ Sent via ${url.includes('facebook') ? 'Facebook' : 'Instagram'} API`);
+      return;
+    } catch (err) {
+      const errData = err.response?.data || err.message;
+      console.error(`❌ Failed (${url}):`, JSON.stringify(errData));
+      await sendTelegramMessage(`❌ Failed ${url.split('/')[2]}: ${JSON.stringify(errData)}`);
+    }
   }
 }
 
