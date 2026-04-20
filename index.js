@@ -17,7 +17,6 @@ const BUSINESS_ACCOUNT_ID = process.env.BUSINESS_ACCOUNT_ID;
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const LOG_FILE = path.join(__dirname, 'conversations.json');
 
-// key -> { instagramUserId, suggestedReply, clientMessage, clientName }
 const pendingReplies = {};
 
 function saveConversation(clientMessage, finalReply) {
@@ -29,51 +28,64 @@ function saveConversation(clientMessage, finalReply) {
   fs.writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
 }
 
+function removeDashes(text) {
+  return text
+    .replace(/\s*—\s*/g, '. ')
+    .replace(/\s*–\s*/g, '. ')
+    .replace(/\s+-\s+/g, '. ')
+    .replace(/\.\s*\.\s*/g, '. ')
+    .trim();
+}
+
 async function getInstagramUser(userId) {
   try {
     const res = await axios.get(`https://graph.instagram.com/v19.0/${userId}`, {
       params: { fields: 'name,username', access_token: PAGE_ACCESS_TOKEN }
     });
+    console.log('Instagram user data:', JSON.stringify(res.data));
     return res.data;
-  } catch {
+  } catch (err) {
+    console.error('getInstagramUser error:', err.response?.data || err.message);
     return null;
   }
 }
 
 async function generateReply(incomingText, clientName) {
-  const nameHint = clientName ? `The client's name is ${clientName}. Use their name naturally if it fits.` : '';
+  const nameHint = clientName ? `The client's name is ${clientName}. Use their name naturally once if it feels right.` : '';
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 150,
-    system: `You are a high-level coach in mobility, flexibility, handstand, bodyweight strength, and yoga. You understand joint health, shoulder/elbow/knee pain, and basic rehab. You are NOT a doctor.
+    system: `You are a high-level coach in mobility, flexibility, handstand, bodyweight strength, and yoga. You understand joint health and basic rehab. Not a doctor, a practical coach.
 
-TRAINING:
-Sessions combine yoga, mobility work, and bodyweight training. Focus on shoulders, spine, hips, full body control. Duration 1h to 1h40min. Works for any level.
+TRAINING: Sessions combine yoga, mobility work and bodyweight training. Shoulders, spine, hips, full body control. 1h to 1h40min. Any level.
 
-PRICING:
-1 session = 70 euro (or ~80 USD). Payment by crypto (preferred) or Wise.
+PRICING: 1 session = 70 euro or ~80 USD. Payment by crypto (preferred) or Wise.
 
-BOOKING: collect time zone, preferred days and time, then offer slots.
+BOOKING: Ask for time zone, preferred days and time. Then offer slots.
 
-STYLE (CRITICAL):
-Short. 1 to 3 sentences max. Human, calm, confident, slightly informal. Like a real coach talking to someone, not a marketer writing copy. No pressure, no sales language, no long explanations. No formal greetings. No lists. No corporate phrases. Never use dashes or hyphens in your sentences.
+STYLE RULES (FOLLOW STRICTLY):
+Write short. 1 to 3 sentences only.
+Sound human, calm, confident, slightly informal.
+Write like a real coach texting someone, not a marketer.
+No pressure. No sales language. No long explanations.
+No formal greetings like "Hello" or "Hi there".
+No bullet points or lists.
+No corporate phrases.
+NEVER use dashes of any kind. No em dash. No en dash. No hyphen between words. Rewrite the sentence without them.
+If you want to connect two thoughts, use a period or a new sentence instead.
 
-GOAL:
-Understand the person first. Ask one question at a time. Guide naturally toward booking. Build trust, show understanding.
+CONVERSATION GOAL: Understand the person first. Ask one question at a time. Move naturally toward booking.
 
-WHEN PRICE IS ASKED:
-"One session is 70 euro, everything is adjusted to your level and goals." Then ask what they are working on.
+WHEN PRICE IS ASKED: "One session is 70 euro, adjusted to your level and goals." Then ask what they are working on.
 
-FOLLOW UP if hesitating:
-"I am also putting together an online program, more affordable and self paced. Can let you know when it drops." No pressure.
+FOLLOW UP if hesitating: "I am also putting together an online program, more affordable and self paced. Can let you know when it drops." No pressure.
 
-RULES:
-Never dump info. If unsure what they need, ask. Keep it short. Respond in the same language the client writes in. Never use dashes or hyphens anywhere in the reply.
+RULES: Never dump info. If unsure what they need, ask. Respond in the same language the client writes in.
 
 ${nameHint}`,
     messages: [{ role: 'user', content: incomingText }]
   });
-  return message.content[0].text.trim().replace(/[—–-]/g, '');
+  return removeDashes(message.content[0].text.trim());
 }
 
 async function sendTelegramMessage(text) {
@@ -94,10 +106,22 @@ async function sendInstagramMessage(recipientId, text) {
       { recipient: { id: recipientId }, message: { text } },
       { params: { access_token: PAGE_ACCESS_TOKEN } }
     );
-    console.log('✅ Отправлено в Instagram');
+    console.log('✅ Sent to Instagram');
   } catch (error) {
-    console.error('❌ Ошибка Instagram:', error.response?.data);
+    console.error('❌ Instagram error:', error.response?.data);
   }
+}
+
+function buildClientCard(user, senderId) {
+  if (!user || (!user.name && !user.username)) {
+    return `User ID: ${senderId}`;
+  }
+  const name = user.name || user.username;
+  const username = user.username;
+  if (username) {
+    return `Name: ${name}\nUsername: @${username}\nProfile: https://instagram.com/${username}\nUser ID: ${senderId}`;
+  }
+  return `Name: ${name}\nUser ID: ${senderId}`;
 }
 
 // Debug endpoints
@@ -114,6 +138,11 @@ app.get('/test-instagram/:userId', async (req, res) => {
   }
 });
 
+app.get('/test-user/:userId', async (req, res) => {
+  const user = await getInstagramUser(req.params.userId);
+  res.json({ user });
+});
+
 app.get('/test-claude', async (req, res) => {
   try {
     const result = await generateReply('How much is a session?', null);
@@ -126,12 +155,11 @@ app.get('/test-claude', async (req, res) => {
 app.get('/test-telegram', async (req, res) => {
   try {
     const result = await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-      chat_id: CHAT_ID,
-      text: '✅ Railway → Telegram работает!'
+      chat_id: CHAT_ID, text: '✅ Railway → Telegram работает!'
     });
     res.json({ ok: true, telegram: result.data });
   } catch (err) {
-    res.json({ ok: false, error: err.response?.data || err.message, token_preview: TELEGRAM_TOKEN?.slice(0, 10), chat_id: CHAT_ID });
+    res.json({ ok: false, error: err.response?.data || err.message, chat_id: CHAT_ID });
   }
 });
 
@@ -145,7 +173,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Webhook verification
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -157,11 +184,12 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-// Входящие сообщения из Instagram
 app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
 
   const body = req.body;
+  console.log('WEBHOOK PAYLOAD:', JSON.stringify(body, null, 2));
+
   if (body.object !== 'instagram') return;
 
   for (const entry of body.entry) {
@@ -172,42 +200,36 @@ app.post('/webhook', async (req, res) => {
       if (!event.message || event.message.is_echo) continue;
 
       const senderId = event.sender.id;
-      const text = event.message.text || '(без текста)';
+      const text = event.message.text || '(no text)';
 
-      // Получаем профиль клиента
+      console.log('SENDER OBJECT:', JSON.stringify(event.sender));
+
       const user = await getInstagramUser(senderId);
-      const name = user?.name || user?.username || null;
-      const username = user?.username || null;
-
-      const profileLine = username
-        ? `Name: ${name}\nUsername: @${username}\nProfile: https://instagram.com/${username}\nUser ID: ${senderId}`
-        : `User ID: ${senderId}`;
-
-      console.log(`📩 Instagram от ${senderId} (${name || 'unknown'}): ${text}`);
+      const clientCard = buildClientCard(user, senderId);
+      const clientName = user?.name || user?.username || null;
 
       await sendTelegramMessage(
-        `New message from Instagram:\n\n${profileLine}\n\nMessage:\n"${text}"\n\n⏳ Генерирую ответ...`
+        `New message from Instagram:\n\n${clientCard}\n\nMessage:\n"${text}"\n\n⏳ Generating reply...`
       );
 
       try {
-        const suggested = await generateReply(text, name);
+        const suggested = await generateReply(text, clientName);
         const key = Date.now().toString();
-        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested, clientMessage: text, clientName: name };
+        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested, clientMessage: text };
 
         await sendTelegramMessage(
-          `🤖 Claude предлагает:\n"${suggested}"\n\nОтправь свой текст чтобы ответить.\nОтправь "+" чтобы принять.`
+          `🤖 Suggested reply:\n"${suggested}"\n\nSend your own text to reply.\nSend "+" to accept this suggestion.`
         );
       } catch (err) {
-        console.error('Ошибка Claude:', err.message);
+        console.error('Claude error:', err.message);
         const key = Date.now().toString();
-        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: null, clientMessage: text, clientName: name };
-        await sendTelegramMessage(`⚠️ Claude недоступен. Напиши ответ вручную.`);
+        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: null, clientMessage: text };
+        await sendTelegramMessage(`⚠️ Claude unavailable. Reply manually.`);
       }
     }
   }
 });
 
-// Твои ответы из Telegram → в Instagram
 app.post('/telegram', async (req, res) => {
   const message = req.body.message;
   if (!message || !message.text) return res.sendStatus(200);
@@ -216,7 +238,7 @@ app.post('/telegram', async (req, res) => {
   const keys = Object.keys(pendingReplies);
 
   if (keys.length === 0) {
-    await sendTelegramMessage('⚠️ Нет входящих сообщений для ответа.');
+    await sendTelegramMessage('⚠️ No pending messages to reply to.');
     return res.sendStatus(200);
   }
 
@@ -228,7 +250,7 @@ app.post('/telegram', async (req, res) => {
 
   await sendInstagramMessage(instagramUserId, finalReply);
   saveConversation(clientMessage, finalReply);
-  await sendTelegramMessage(`✅ Отправлено: "${finalReply}"`);
+  await sendTelegramMessage(`✅ Sent: "${finalReply}"`);
 
   res.sendStatus(200);
 });
