@@ -3,6 +3,20 @@ const axios = require('axios');
 require('dotenv').config();
 const app = express();
 
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const CHAT_ID = process.env.CHAT_ID;
+
+async function sendTelegramMessage(text) {
+  try {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+      chat_id: CHAT_ID,
+      text: text
+    });
+  } catch (error) {
+    console.error('Telegram error:', error.response?.data);
+  }
+}
+
 app.use(express.json());
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
@@ -75,7 +89,7 @@ app.post('/webhook', (req, res) => {
               return;
             }
 
-            sendMessage(senderId, 'hello');
+            // auto-reply disabled
           }
         });
       } else {
@@ -92,4 +106,5 @@ app.post('/webhook', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  sendTelegramMessage('Bot is live 🚀');
 });
