@@ -1,6 +1,8 @@
 const express = require('express');
 const axios = require('axios');
 const Anthropic = require('@anthropic-ai/sdk');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -14,29 +16,51 @@ const BUSINESS_ACCOUNT_ID = process.env.BUSINESS_ACCOUNT_ID;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// key -> { instagramUserId, suggestedReply }
+const LOG_FILE = path.join(__dirname, 'conversations.json');
+
+// key -> { instagramUserId, suggestedReply, clientMessage }
 const pendingReplies = {};
+
+function saveConversation(clientMessage, finalReply) {
+  let log = [];
+  if (fs.existsSync(LOG_FILE)) {
+    try { log = JSON.parse(fs.readFileSync(LOG_FILE, 'utf8')); } catch {}
+  }
+  log.push({ date: new Date().toISOString(), client: clientMessage, reply: finalReply });
+  fs.writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
+}
 
 async function generateReply(incomingText) {
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 300,
-    system: `Ты — помощник, который отвечает на сообщения клиентов в Instagram от имени владельца аккаунта.
-Пиши коротко, дружелюбно, по-русски. Не используй эмодзи и официальный тон.
-Если вопрос про цену или услугу — предложи написать в директ для уточнений.`,
+    max_tokens: 150,
+    system: `Ты отвечаешь на сообщения клиентов в Instagram от имени тренера.
+
+Стиль:
+- коротко (1-3 предложения максимум)
+- по-человечески, уверенно
+- как тренер, не маркетолог
+- без продажного тона
+- без корпоративного языка
+- без длинных объяснений
+
+Запрещено:
+- "Здравствуйте!", "Рад приветствовать"
+- Перечисления и списки
+- Фразы типа "Наши услуги включают..."
+
+Если спрашивают цену или детали — уточни цель/уровень клиента прежде чем отвечать.`,
     messages: [{ role: 'user', content: incomingText }]
   });
-  return message.content[0].text;
+  return message.content[0].text.trim();
 }
 
-async function sendTelegramMessage(text, options = {}) {
+async function sendTelegramMessage(text) {
   try {
-    const res = await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
       chat_id: CHAT_ID,
-      text,
-      ...options
+      text
     });
-    return res.data;
   } catch (error) {
     console.error('Telegram error:', error.response?.data);
   }
@@ -83,14 +107,12 @@ app.post('/webhook', (req, res) => {
       const text = event.message.text || '(без текста)';
       console.log(`📩 Instagram от ${senderId}: ${text}`);
 
-      // Генерируем ответ через Claude
       const suggested = await generateReply(text);
       const key = Date.now().toString();
-      pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested };
+      pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested, clientMessage: text };
 
-      // Отправляем тебе в Telegram с предложенным ответом
       await sendTelegramMessage(
-        `📩 Клиент написал:\n"${text}"\n\n🤖 Claude предлагает:\n"${suggested}"\n\n✅ Отправь любой текст чтобы ответить (или отправь этот же текст чтобы принять предложение).\nID: ${key}`
+        `📩 Клиент:\n"${text}"\n\n🤖 Claude предлагает:\n"${suggested}"\n\n— Отправь свой текст чтобы ответить\n— Отправь "+" чтобы принять предложение`
       );
     });
   });
@@ -112,13 +134,13 @@ app.post('/telegram', async (req, res) => {
   }
 
   const lastKey = keys[keys.length - 1];
-  const { instagramUserId, suggestedReply } = pendingReplies[lastKey];
+  const { instagramUserId, suggestedReply, clientMessage } = pendingReplies[lastKey];
   delete pendingReplies[lastKey];
 
-  // Если написал "+" — отправляем предложенный ответ
   const finalReply = text === '+' ? suggestedReply : text;
 
   await sendInstagramMessage(instagramUserId, finalReply);
+  saveConversation(clientMessage, finalReply);
   await sendTelegramMessage(`✅ Отправлено: "${finalReply}"`);
 
   res.sendStatus(200);
@@ -127,5 +149,5 @@ app.post('/telegram', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  await sendTelegramMessage('Bot is live 🚀 Claude подключён — буду предлагать ответы.');
+  await sendTelegramMessage('Bot is live 🚀');
 });
