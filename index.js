@@ -101,18 +101,18 @@ async function sendTelegramMessage(text) {
 }
 
 async function sendInstagramMessage(recipientId, text) {
-  const url = `https://graph.facebook.com/v18.0/me/messages`;
+  const url = `https://graph.instagram.com/v19.0/${BUSINESS_ACCOUNT_ID}/messages`;
   const payload = { recipient: { id: recipientId }, message: { text } };
-  console.log(`Sending to ${url}, payload:`, JSON.stringify(payload));
+  console.log(`Sending to ${url}, recipient: ${recipientId}`);
   try {
     const res = await axios.post(url, payload, {
       params: { access_token: PAGE_ACCESS_TOKEN }
     });
-    console.log(`✅ Instagram sent:`, JSON.stringify(res.data));
+    console.log(`✅ Sent:`, JSON.stringify(res.data));
   } catch (err) {
     const errData = err.response?.data || err.message;
     console.error(`❌ Instagram error:`, JSON.stringify(errData));
-    await sendTelegramMessage(`❌ Instagram send failed: ${JSON.stringify(errData)}`);
+    await sendTelegramMessage(`❌ Send failed: ${JSON.stringify(errData)}`);
   }
 }
 
