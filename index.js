@@ -178,7 +178,7 @@ app.post('/webhook', async (req, res) => {
       console.log(`📩 Instagram от ${senderId}: ${text}`);
 
       // Сразу уведомляем — чтобы не потерять сообщение
-      await sendTelegramMessage(`📩 Клиент написал:\n"${text}"\n\n⏳ Генерирую ответ...`);
+      await sendTelegramMessage(`📩 Клиент написал:\n"${text}"\n\nID клиента: ${senderId}\n\n⏳ Генерирую ответ...`);
 
       try {
         const suggested = await generateReply(text);
