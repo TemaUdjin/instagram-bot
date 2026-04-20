@@ -103,6 +103,15 @@ async function sendInstagramMessage(recipientId, text) {
   }
 }
 
+app.get('/test-claude', async (req, res) => {
+  try {
+    const result = await generateReply('How much is a session?');
+    res.json({ ok: true, reply: result });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
 app.get('/test-telegram', async (req, res) => {
   try {
     const result = await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
