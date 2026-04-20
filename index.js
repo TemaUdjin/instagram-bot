@@ -103,6 +103,16 @@ async function sendInstagramMessage(recipientId, text) {
   }
 }
 
+app.get('/health', (req, res) => {
+  res.json({
+    telegram_token: !!TELEGRAM_TOKEN,
+    chat_id: !!CHAT_ID,
+    page_access_token: !!PAGE_ACCESS_TOKEN,
+    anthropic_key: !!process.env.ANTHROPIC_API_KEY,
+    business_account_id: !!BUSINESS_ACCOUNT_ID
+  });
+});
+
 // Webhook verification
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
