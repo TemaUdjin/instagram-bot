@@ -20,6 +20,8 @@ const LOG_FILE = path.join(__dirname, 'conversations.json');
 
 const pendingReplies = {};
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 function saveConversation(clientMessage, finalReply) {
   let log = [];
   if (fs.existsSync(LOG_FILE)) {
@@ -38,18 +40,75 @@ function removeDashes(text) {
     .trim();
 }
 
+function log(label, data) {
+  const ts = new Date().toISOString();
+  if (typeof data === 'object') {
+    console.log(`[${ts}] ${label}:`, JSON.stringify(data));
+  } else {
+    console.log(`[${ts}] ${label}:`, data);
+  }
+}
+
+// ─── Instagram ────────────────────────────────────────────────────────────────
+
 async function getInstagramUser(userId) {
   try {
     const res = await axios.get(`https://graph.instagram.com/v19.0/${userId}`, {
       params: { fields: 'name,username', access_token: PAGE_ACCESS_TOKEN }
     });
-    console.log('Instagram user data:', JSON.stringify(res.data));
+    log('IG user lookup', res.data);
     return res.data;
   } catch (err) {
-    console.error('getInstagramUser error:', err.response?.data || err.message);
+    log('IG user lookup failed', err.response?.data || err.message);
     return null;
   }
 }
+
+async function sendInstagramMessage(recipientId, text) {
+  const url = `https://graph.instagram.com/v19.0/${BUSINESS_ACCOUNT_ID}/messages`;
+  const payload = { recipient: { id: recipientId }, message: { text } };
+  log('IG send →', { url, recipientId, text });
+  try {
+    const res = await axios.post(url, payload, {
+      params: { access_token: PAGE_ACCESS_TOKEN }
+    });
+    log('✅ IG sent', res.data);
+    return { ok: true, data: res.data };
+  } catch (err) {
+    const errData = err.response?.data || err.message;
+    log('❌ IG send failed', errData);
+    await sendTelegramMessage(
+      `❌ Instagram send failed\nRecipient: ${recipientId}\nError: ${JSON.stringify(errData, null, 2)}`
+    );
+    return { ok: false, error: errData };
+  }
+}
+
+async function checkTokenValidity() {
+  try {
+    const res = await axios.get('https://graph.instagram.com/v19.0/me', {
+      params: { fields: 'id,username,name', access_token: PAGE_ACCESS_TOKEN }
+    });
+    const tokenType = PAGE_ACCESS_TOKEN?.startsWith('IGAA') ? 'IGAA (Instagram long-lived)' :
+                      PAGE_ACCESS_TOKEN?.startsWith('EAAX') ? 'EAAXfm (Facebook user)' : 'unknown';
+    return { valid: true, account: res.data, token_type: tokenType };
+  } catch (err) {
+    return { valid: false, error: err.response?.data || err.message };
+  }
+}
+
+async function checkTokenPermissions() {
+  try {
+    const res = await axios.get('https://graph.facebook.com/v18.0/me/permissions', {
+      params: { access_token: PAGE_ACCESS_TOKEN }
+    });
+    return res.data.data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ─── Claude ───────────────────────────────────────────────────────────────────
 
 async function generateReply(incomingText, clientName) {
   const nameHint = clientName ? `The client's name is ${clientName}. Use their name naturally once if it feels right.` : '';
@@ -89,6 +148,8 @@ ${nameHint}`,
   return removeDashes(message.content[0].text.trim());
 }
 
+// ─── Telegram ─────────────────────────────────────────────────────────────────
+
 async function sendTelegramMessage(text) {
   try {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
@@ -96,25 +157,11 @@ async function sendTelegramMessage(text) {
       text
     });
   } catch (error) {
-    console.error('Telegram error:', error.response?.data);
+    console.error('[Telegram send error]', error.response?.data || error.message);
   }
 }
 
-async function sendInstagramMessage(recipientId, text) {
-  const url = `https://graph.instagram.com/v19.0/${BUSINESS_ACCOUNT_ID}/messages`;
-  const payload = { recipient: { id: recipientId }, message: { text } };
-  console.log(`Sending to ${url}, recipient: ${recipientId}`);
-  try {
-    const res = await axios.post(url, payload, {
-      params: { access_token: PAGE_ACCESS_TOKEN }
-    });
-    console.log(`✅ Sent:`, JSON.stringify(res.data));
-  } catch (err) {
-    const errData = err.response?.data || err.message;
-    console.error(`❌ Instagram error:`, JSON.stringify(errData));
-    await sendTelegramMessage(`❌ Send failed: ${JSON.stringify(errData)}`);
-  }
-}
+// ─── Utils ────────────────────────────────────────────────────────────────────
 
 function buildClientCard(user, senderId) {
   if (!user || (!user.name && !user.username)) {
@@ -128,24 +175,67 @@ function buildClientCard(user, senderId) {
   return `Name: ${name}\nUser ID: ${senderId}`;
 }
 
-// Debug endpoints
-app.get('/test-instagram/:userId', async (req, res) => {
+// ─── Routes: diagnostics ──────────────────────────────────────────────────────
+
+app.get('/health', async (req, res) => {
+  const tokenCheck = await checkTokenValidity();
+
+  let claudeOk = false;
   try {
-    const url = `https://graph.facebook.com/v19.0/${PAGE_ID}/messages`;
-    const payload = { recipient: { id: req.params.userId }, message: { text: 'test from bot' } };
-    console.log(`Test send to ${url}, recipient: ${req.params.userId}`);
-    const response = await axios.post(url, payload, {
-      params: { access_token: PAGE_ACCESS_TOKEN }
+    await anthropic.messages.create({
+      model: 'claude-sonnet-4-6', max_tokens: 10,
+      messages: [{ role: 'user', content: 'ping' }]
     });
-    res.json({ ok: true, data: response.data });
-  } catch (err) {
-    res.json({ ok: false, error: err.response?.data || err.message });
-  }
+    claudeOk = true;
+  } catch {}
+
+  let telegramOk = false;
+  try {
+    const r = await axios.get(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getMe`);
+    telegramOk = !!r.data.ok;
+  } catch {}
+
+  const status = {
+    token: tokenCheck,
+    instagram_account_id: BUSINESS_ACCOUNT_ID,
+    claude: claudeOk,
+    telegram: telegramOk,
+    env: {
+      PAGE_ACCESS_TOKEN: !!PAGE_ACCESS_TOKEN,
+      BUSINESS_ACCOUNT_ID: !!BUSINESS_ACCOUNT_ID,
+      VERIFY_TOKEN: !!VERIFY_TOKEN,
+      TELEGRAM_TOKEN: !!TELEGRAM_TOKEN,
+      CHAT_ID: !!CHAT_ID,
+      ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
+    }
+  };
+
+  const allOk = tokenCheck.valid && claudeOk && telegramOk;
+  res.status(allOk ? 200 : 503).json(status);
 });
 
-app.get('/test-user/:userId', async (req, res) => {
-  const user = await getInstagramUser(req.params.userId);
-  res.json({ user });
+app.get('/debug-token', async (req, res) => {
+  const token = PAGE_ACCESS_TOKEN || '';
+  const tokenType = token.startsWith('IGAA') ? 'IGAA (Instagram long-lived — correct)' :
+                    token.startsWith('EAAX') ? 'EAAXfm (Facebook user — wrong type)' :
+                    token ? 'unknown type' : 'missing';
+
+  const validity = await checkTokenValidity();
+  const permissions = await checkTokenPermissions();
+
+  res.json({
+    token_preview: {
+      starts_with: token.slice(0, 15),
+      ends_with: token.slice(-10),
+      length: token.length,
+      type: tokenType,
+    },
+    valid: validity.valid,
+    account: validity.account || null,
+    error: validity.error || null,
+    permissions: permissions.filter(p => p.status === 'granted').map(p => p.permission),
+    missing_permissions: permissions.filter(p => p.status !== 'granted').map(p => p.permission),
+  });
 });
 
 app.get('/test-claude', async (req, res) => {
@@ -160,42 +250,30 @@ app.get('/test-claude', async (req, res) => {
 app.get('/test-telegram', async (req, res) => {
   try {
     const result = await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-      chat_id: CHAT_ID, text: '✅ Railway → Telegram работает!'
+      chat_id: CHAT_ID, text: '✅ Railway → Telegram test OK'
     });
     res.json({ ok: true, telegram: result.data });
   } catch (err) {
-    res.json({ ok: false, error: err.response?.data || err.message, chat_id: CHAT_ID });
+    res.json({ ok: false, error: err.response?.data || err.message });
   }
 });
 
-app.get('/debug-token', (req, res) => {
-  const token = PAGE_ACCESS_TOKEN || '';
-  res.json({
-    length: token.length,
-    starts_with: token.slice(0, 15),
-    ends_with: token.slice(-10),
-    has_spaces: token.includes(' '),
-    has_equals: token.includes('='),
-  });
+app.get('/test-user/:userId', async (req, res) => {
+  const user = await getInstagramUser(req.params.userId);
+  res.json({ user });
 });
 
-app.get('/health', (req, res) => {
-  res.json({
-    telegram_token: !!TELEGRAM_TOKEN,
-    chat_id: !!CHAT_ID,
-    page_access_token: !!PAGE_ACCESS_TOKEN,
-    anthropic_key: !!process.env.ANTHROPIC_API_KEY,
-    business_account_id: !!BUSINESS_ACCOUNT_ID
-  });
-});
+// ─── Routes: webhook ─────────────────────────────────────────────────────────
 
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    log('Webhook verified', { mode, token });
     res.status(200).send(challenge);
   } else {
+    log('Webhook verify FAILED', { mode, token });
     res.sendStatus(403);
   }
 });
@@ -204,7 +282,7 @@ app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
 
   const body = req.body;
-  console.log('WEBHOOK PAYLOAD:', JSON.stringify(body, null, 2));
+  log('Webhook received', body);
 
   if (body.object !== 'instagram') return;
 
@@ -212,23 +290,19 @@ app.post('/webhook', async (req, res) => {
     const messaging = entry.messaging;
     if (!messaging) continue;
 
-    const entryAccountId = entry.id;
-    console.log('ENTRY ID:', entryAccountId, '| BUSINESS_ACCOUNT_ID:', BUSINESS_ACCOUNT_ID);
-
     for (const event of messaging) {
       if (!event.message || event.message.is_echo) continue;
 
       const senderId = event.sender.id;
       const text = event.message.text || '(no text)';
-
-      console.log('SENDER:', senderId, '| RECIPIENT:', event.recipient?.id, '| ENTRY:', entryAccountId);
+      log('Incoming DM', { senderId, text, entryId: entry.id });
 
       const user = await getInstagramUser(senderId);
       const clientCard = buildClientCard(user, senderId);
       const clientName = user?.name || user?.username || null;
 
       await sendTelegramMessage(
-        `New message from Instagram:\n\n${clientCard}\n\nMessage:\n"${text}"\n\n⏳ Generating reply...`
+        `New Instagram DM:\n\n${clientCard}\n\nMessage:\n"${text}"\n\n⏳ Generating reply...`
       );
 
       try {
@@ -237,17 +311,19 @@ app.post('/webhook', async (req, res) => {
         pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested, clientMessage: text };
 
         await sendTelegramMessage(
-          `🤖 Suggested reply:\n"${suggested}"\n\nSend your own text to reply.\nSend "+" to accept this suggestion.`
+          `🤖 Suggested reply:\n"${suggested}"\n\nSend your own text to reply.\nSend "+" to accept.`
         );
       } catch (err) {
-        console.error('Claude error:', err.message);
+        log('Claude error', err.message);
         const key = Date.now().toString();
         pendingReplies[key] = { instagramUserId: senderId, suggestedReply: null, clientMessage: text };
-        await sendTelegramMessage(`⚠️ Claude unavailable. Reply manually.`);
+        await sendTelegramMessage(`⚠️ Claude unavailable. Reply manually with your text.`);
       }
     }
   }
 });
+
+// ─── Routes: Telegram replies ─────────────────────────────────────────────────
 
 app.post('/telegram', async (req, res) => {
   const message = req.body.message;
@@ -257,7 +333,7 @@ app.post('/telegram', async (req, res) => {
   const keys = Object.keys(pendingReplies);
 
   if (keys.length === 0) {
-    await sendTelegramMessage('⚠️ No pending messages to reply to.');
+    await sendTelegramMessage('⚠️ No pending Instagram messages to reply to.');
     return res.sendStatus(200);
   }
 
@@ -267,15 +343,31 @@ app.post('/telegram', async (req, res) => {
 
   const finalReply = text === '+' ? suggestedReply : text;
 
-  await sendInstagramMessage(instagramUserId, finalReply);
-  saveConversation(clientMessage, finalReply);
-  await sendTelegramMessage(`✅ Sent: "${finalReply}"`);
+  if (!finalReply) {
+    await sendTelegramMessage('⚠️ No suggested reply available. Send the text you want to send.');
+    pendingReplies[lastKey] = { instagramUserId, suggestedReply, clientMessage };
+    return res.sendStatus(200);
+  }
+
+  const result = await sendInstagramMessage(instagramUserId, finalReply);
+  if (result.ok) {
+    saveConversation(clientMessage, finalReply);
+    await sendTelegramMessage(`✅ Sent to Instagram:\n"${finalReply}"`);
+  }
 
   res.sendStatus(200);
 });
 
+// ─── Start ────────────────────────────────────────────────────────────────────
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  log('Server started', { port: PORT });
+  log('Config', {
+    BUSINESS_ACCOUNT_ID,
+    PAGE_ID,
+    token_type: PAGE_ACCESS_TOKEN?.startsWith('IGAA') ? 'IGAA ✅' : 'wrong type ❌',
+    token_preview: PAGE_ACCESS_TOKEN?.slice(0, 15) + '...',
+  });
   await sendTelegramMessage('Bot is live 🚀');
 });
