@@ -15,10 +15,9 @@ const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const BUSINESS_ACCOUNT_ID = process.env.BUSINESS_ACCOUNT_ID;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 const LOG_FILE = path.join(__dirname, 'conversations.json');
 
-// key -> { instagramUserId, suggestedReply, clientMessage }
+// key -> { instagramUserId, suggestedReply, clientMessage, clientName }
 const pendingReplies = {};
 
 function saveConversation(clientMessage, finalReply) {
@@ -30,53 +29,51 @@ function saveConversation(clientMessage, finalReply) {
   fs.writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
 }
 
-async function generateReply(incomingText) {
+async function getInstagramUser(userId) {
+  try {
+    const res = await axios.get(`https://graph.instagram.com/v19.0/${userId}`, {
+      params: { fields: 'name,username', access_token: PAGE_ACCESS_TOKEN }
+    });
+    return res.data;
+  } catch {
+    return null;
+  }
+}
+
+async function generateReply(incomingText, clientName) {
+  const nameHint = clientName ? `The client's name is ${clientName}. Use their name naturally if it fits.` : '';
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 150,
-    system: `You are a high-level coach in mobility, flexibility, handstand, bodyweight strength, and yoga. You also understand joint health, shoulder/elbow/knee pain, and basic rehab principles. You are NOT a doctor — you are a practical, experienced coach.
+    system: `You are a high-level coach in mobility, flexibility, handstand, bodyweight strength, and yoga. You understand joint health, shoulder/elbow/knee pain, and basic rehab. You are NOT a doctor.
 
 TRAINING:
-- Sessions combine yoga, mobility work, and bodyweight training
-- Includes mobility work, strength drills, joint conditioning
-- Focus: shoulders, spine, hips, full body control
-- Duration: 1h to 1h40min depending on level
-- Works for any level, beginner to advanced
+Sessions combine yoga, mobility work, and bodyweight training. Focus on shoulders, spine, hips, full body control. Duration 1h to 1h40min. Works for any level.
 
 PRICING:
-- 1 session = 70€ (or ~80 USD)
-- Payment: crypto (preferred) or Wise
+1 session = 70 euro (or ~80 USD). Payment by crypto (preferred) or Wise.
 
-BOOKING: collect time zone, preferred days, preferred time — then offer slots.
+BOOKING: collect time zone, preferred days and time, then offer slots.
 
-COMMUNICATION STYLE (CRITICAL):
-- Short. 1-3 sentences max.
-- Human, calm, confident, slightly informal
-- Like a real coach, not a marketer
-- No pressure, no sales language, no long explanations
-- No "Hello!", no lists, no corporate phrases
+STYLE (CRITICAL):
+Short. 1 to 3 sentences max. Human, calm, confident, slightly informal. Like a real coach talking to someone, not a marketer writing copy. No pressure, no sales language, no long explanations. No formal greetings. No lists. No corporate phrases. Never use dashes or hyphens in your sentences.
 
-CONVERSATION GOAL:
-1. Understand the person first
-2. Ask one simple question at a time
-3. Guide naturally toward booking
-- Build trust, show understanding, suggest softly
-- Example: "Yeah, I see that a lot with shoulders. We can sort it pretty fast with the right approach."
+GOAL:
+Understand the person first. Ask one question at a time. Guide naturally toward booking. Build trust, show understanding.
 
 WHEN PRICE IS ASKED:
-"One session is 70€, we adjust everything to your level and goals." — then move forward.
+"One session is 70 euro, everything is adjusted to your level and goals." Then ask what they are working on.
 
-FOLLOW-UP (if hesitating):
-"I'm also working on an online program, more affordable and self-paced. Can let you know when it's ready." — no pressure.
+FOLLOW UP if hesitating:
+"I am also putting together an online program, more affordable and self paced. Can let you know when it drops." No pressure.
 
 RULES:
-- Never dump information
-- If unsure what they need → ask a question
-- Always keep it short and natural
-- Respond in the same language the client writes in`,
+Never dump info. If unsure what they need, ask. Keep it short. Respond in the same language the client writes in. Never use dashes or hyphens anywhere in the reply.
+
+${nameHint}`,
     messages: [{ role: 'user', content: incomingText }]
   });
-  return message.content[0].text.trim();
+  return message.content[0].text.trim().replace(/[—–-]/g, '');
 }
 
 async function sendTelegramMessage(text) {
@@ -103,6 +100,7 @@ async function sendInstagramMessage(recipientId, text) {
   }
 }
 
+// Debug endpoints
 app.get('/test-instagram/:userId', async (req, res) => {
   try {
     const response = await axios.post(
@@ -118,7 +116,7 @@ app.get('/test-instagram/:userId', async (req, res) => {
 
 app.get('/test-claude', async (req, res) => {
   try {
-    const result = await generateReply('How much is a session?');
+    const result = await generateReply('How much is a session?', null);
     res.json({ ok: true, reply: result });
   } catch (err) {
     res.json({ ok: false, error: err.message });
@@ -133,7 +131,7 @@ app.get('/test-telegram', async (req, res) => {
     });
     res.json({ ok: true, telegram: result.data });
   } catch (err) {
-    res.json({ ok: false, error: err.response?.data || err.message, token_preview: TELEGRAM_TOKEN?.slice(0,10), chat_id: CHAT_ID });
+    res.json({ ok: false, error: err.response?.data || err.message, token_preview: TELEGRAM_TOKEN?.slice(0, 10), chat_id: CHAT_ID });
   }
 });
 
@@ -175,23 +173,34 @@ app.post('/webhook', async (req, res) => {
 
       const senderId = event.sender.id;
       const text = event.message.text || '(без текста)';
-      console.log(`📩 Instagram от ${senderId}: ${text}`);
 
-      // Сразу уведомляем — чтобы не потерять сообщение
-      await sendTelegramMessage(`📩 Клиент написал:\n"${text}"\n\nID клиента: ${senderId}\n\n⏳ Генерирую ответ...`);
+      // Получаем профиль клиента
+      const user = await getInstagramUser(senderId);
+      const name = user?.name || user?.username || null;
+      const username = user?.username || null;
+
+      const profileLine = username
+        ? `Name: ${name}\nUsername: @${username}\nProfile: https://instagram.com/${username}\nUser ID: ${senderId}`
+        : `User ID: ${senderId}`;
+
+      console.log(`📩 Instagram от ${senderId} (${name || 'unknown'}): ${text}`);
+
+      await sendTelegramMessage(
+        `New message from Instagram:\n\n${profileLine}\n\nMessage:\n"${text}"\n\n⏳ Генерирую ответ...`
+      );
 
       try {
-        const suggested = await generateReply(text);
+        const suggested = await generateReply(text, name);
         const key = Date.now().toString();
-        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested, clientMessage: text };
+        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested, clientMessage: text, clientName: name };
 
         await sendTelegramMessage(
-          `🤖 Claude предлагает:\n"${suggested}"\n\n— Отправь свой текст чтобы ответить\n— Отправь "+" чтобы принять`
+          `🤖 Claude предлагает:\n"${suggested}"\n\nОтправь свой текст чтобы ответить.\nОтправь "+" чтобы принять.`
         );
       } catch (err) {
         console.error('Ошибка Claude:', err.message);
         const key = Date.now().toString();
-        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: null, clientMessage: text };
+        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: null, clientMessage: text, clientName: name };
         await sendTelegramMessage(`⚠️ Claude недоступен. Напиши ответ вручную.`);
       }
     }
