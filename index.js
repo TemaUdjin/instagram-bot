@@ -176,6 +176,17 @@ app.get('/test-telegram', async (req, res) => {
   }
 });
 
+app.get('/debug-token', (req, res) => {
+  const token = PAGE_ACCESS_TOKEN || '';
+  res.json({
+    length: token.length,
+    starts_with: token.slice(0, 15),
+    ends_with: token.slice(-10),
+    has_spaces: token.includes(' '),
+    has_equals: token.includes('='),
+  });
+});
+
 app.get('/health', (req, res) => {
   res.json({
     telegram_token: !!TELEGRAM_TOKEN,
