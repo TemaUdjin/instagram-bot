@@ -104,8 +104,15 @@ async function sendInstagramMessage(recipientId, text) {
 }
 
 app.get('/test-telegram', async (req, res) => {
-  await sendTelegramMessage('✅ Railway → Telegram работает!');
-  res.json({ sent: true });
+  try {
+    const result = await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+      chat_id: CHAT_ID,
+      text: '✅ Railway → Telegram работает!'
+    });
+    res.json({ ok: true, telegram: result.data });
+  } catch (err) {
+    res.json({ ok: false, error: err.response?.data || err.message, token_preview: TELEGRAM_TOKEN?.slice(0,10), chat_id: CHAT_ID });
+  }
 });
 
 app.get('/health', (req, res) => {
