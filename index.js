@@ -143,17 +143,22 @@ app.post('/webhook', async (req, res) => {
       const text = event.message.text || '(без текста)';
       console.log(`📩 Instagram от ${senderId}: ${text}`);
 
+      // Сразу уведомляем — чтобы не потерять сообщение
+      await sendTelegramMessage(`📩 Клиент написал:\n"${text}"\n\n⏳ Генерирую ответ...`);
+
       try {
         const suggested = await generateReply(text);
         const key = Date.now().toString();
         pendingReplies[key] = { instagramUserId: senderId, suggestedReply: suggested, clientMessage: text };
 
         await sendTelegramMessage(
-          `📩 Клиент:\n"${text}"\n\n🤖 Claude предлагает:\n"${suggested}"\n\n— Отправь свой текст чтобы ответить\n— Отправь "+" чтобы принять предложение`
+          `🤖 Claude предлагает:\n"${suggested}"\n\n— Отправь свой текст чтобы ответить\n— Отправь "+" чтобы принять`
         );
       } catch (err) {
-        console.error('Ошибка обработки сообщения:', err.message);
-        await sendTelegramMessage(`📩 Клиент написал:\n"${text}"\n\n⚠️ Claude недоступен. Ответь вручную.`);
+        console.error('Ошибка Claude:', err.message);
+        const key = Date.now().toString();
+        pendingReplies[key] = { instagramUserId: senderId, suggestedReply: null, clientMessage: text };
+        await sendTelegramMessage(`⚠️ Claude недоступен. Напиши ответ вручную.`);
       }
     }
   }
