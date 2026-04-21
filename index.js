@@ -27,6 +27,16 @@ const AUTO_SEND = false;
 // Resolved at startup — includes BUSINESS_ACCOUNT_ID + real IG account ID
 let resolvedSelfIds = [BUSINESS_ACCOUNT_ID, PAGE_ID].filter(Boolean).map(String);
 
+// Duplicate send guard: { recipientId → { text, time } }
+const lastSentCache = {};
+function isDuplicateSend(recipientId, text) {
+  const last = lastSentCache[recipientId];
+  return last && last.text === text && (Date.now() - last.time) < 10000;
+}
+function recordLastSent(recipientId, text) {
+  lastSentCache[recipientId] = { text, time: Date.now() };
+}
+
 async function resolveSelfIds() {
   try {
     const res = await axios.get('https://graph.instagram.com/v19.0/me', {
@@ -620,7 +630,10 @@ async function renderDialog(telegramUserId, senderId) {
     { text: '✍️ Custom reply', callback_data: 'custom' },
     { text: '✅ Mark as Client', callback_data: 'mark_client' },
   ]);
-  keyboard.push([{ text: '🚫 Ignore conversation', callback_data: 'ignore_conv' }]);
+  keyboard.push([
+    { text: '📜 View Sent Messages', callback_data: `view_sent_${senderId}` },
+    { text: '🚫 Ignore', callback_data: 'ignore_conv' },
+  ]);
   const lastRow = [{ text: '🔁 Follow-up later', callback_data: 'followup' }, { text: '🔙 Back', callback_data: 'inbox' }];
   if (profile.username) {
     keyboard.push([{ text: '🔗 Open Instagram', url: `https://instagram.com/${profile.username}` }]);
@@ -647,6 +660,22 @@ async function showConfirm(telegramUserId, replyText) {
     { text: '✅ Confirm Send', callback_data: 'confirm_send' },
     { text: '❌ Cancel', callback_data: `dialog_${state.selectedSenderId}` },
   ]]);
+}
+
+async function showSentMessages(telegramUserId, senderId) {
+  const history = getHistory(senderId, 100);
+  const outgoing = history.filter(m => m.type === 'outgoing').slice(-20);
+  const profile = getProfile(senderId);
+  const name = displayName(profile, senderId);
+
+  let text = `📜 Sent to ${name} (last ${outgoing.length}):\n\n`;
+  if (outgoing.length === 0) {
+    text += 'No sent messages yet.';
+  } else {
+    outgoing.forEach(m => { text += `• ${m.text}\n`; });
+  }
+
+  await editUIMessage(text, [[{ text: '🔙 Back', callback_data: `dialog_${senderId}` }]]);
 }
 
 async function showCustomReply(telegramUserId, prefillText = null) {
@@ -770,31 +799,29 @@ app.post('/webhook', async (req, res) => {
     for (const event of messaging) {
       if (!event.message) continue;
 
+      // ── HARD GATE: self-message check runs before any other logic ────────────
       const senderId = String(event.sender.id);
       const recipientId = String(event.recipient.id);
-      const text = event.message.text || '(no text)';
       const isEcho = !!event.message.is_echo;
-
-      // Detect self-messages: is_echo flag OR sender is one of our known account IDs
       const isSelf = isEcho || resolvedSelfIds.includes(senderId);
 
-      log('Webhook event', { senderId, recipientId, isEcho, isSelf, selfIds: resolvedSelfIds, text: text.slice(0, 60) });
-
       if (isSelf) {
-        // Only store echo in client thread if that client already exists (has incoming messages)
-        const isRecipientSelf = resolvedSelfIds.includes(recipientId);
-        if (!isRecipientSelf) {
+        const rawText = event.message.text || '';
+        log('Self message — skipped', { senderId, isEcho, recipientId });
+        // Store in existing client thread only (never create new)
+        if (rawText && !resolvedSelfIds.includes(recipientId)) {
           const existing = loadConversations()[recipientId];
-          const hasIncoming = existing?.messages?.some(m => m.type === 'incoming');
-          if (hasIncoming) {
-            log('Echo: storing outgoing in existing client thread', { clientId: recipientId });
-            appendMessage(recipientId, 'outgoing', text);
-          } else {
-            log('Echo: skipping — no existing incoming thread for recipient', { recipientId });
+          if (existing?.messages?.some(m => m.type === 'incoming')) {
+            appendMessage(recipientId, 'outgoing', rawText);
+            log('Echo stored in client thread', { recipientId, text: rawText.slice(0, 60) });
           }
         }
         continue;
       }
+      // ─────────────────────────────────────────────────────────────────────────
+
+      const text = event.message.text || '(no text)';
+      log('Incoming DM', { senderId, recipientId, text: text.slice(0, 60) });
 
       // clientId is always the person writing TO us
       const clientId = senderId;
@@ -904,6 +931,10 @@ app.post('/telegram', async (req, res) => {
       // Re-render current screen — notifications updated, screen unchanged
       await editUIMessage(currentUIContent.text, currentUIContent.keyboard);
 
+    } else if (data.startsWith('view_sent_')) {
+      const targetId = data.slice('view_sent_'.length);
+      await showSentMessages(telegramUserId, targetId);
+
     } else if (data === 'mark_client') {
       const { selectedSenderId } = userState[telegramUserId];
       if (selectedSenderId) {
@@ -930,8 +961,18 @@ app.post('/telegram', async (req, res) => {
       const { selectedSenderId, pendingReply } = userState[telegramUserId];
       log('Sending message', { selectedSenderId, pendingReply });
 
+      if (isDuplicateSend(selectedSenderId, pendingReply)) {
+        log('Duplicate send blocked', { selectedSenderId, pendingReply });
+        await editUIMessage(
+          '⚠️ Duplicate blocked — same message sent within 10 seconds.',
+          [[{ text: '🔙 Back', callback_data: `dialog_${selectedSenderId}` }]]
+        );
+        return;
+      }
+
       const result = await sendInstagramMessage(selectedSenderId, pendingReply);
       if (result.ok) {
+        recordLastSent(selectedSenderId, pendingReply);
         appendMessage(selectedSenderId, 'outgoing', pendingReply);
         setStatus(selectedSenderId, 'Replied');
         saveStyleExample(pendingReply);
@@ -968,17 +1009,13 @@ app.post('/telegram', async (req, res) => {
 
 function cleanSelfConversations() {
   const data = loadConversations();
-  const selfIds = [BUSINESS_ACCOUNT_ID, PAGE_ID].filter(Boolean).map(String);
   let cleaned = 0;
-  for (const id of selfIds) {
-    if (data[id]) {
-      delete data[id];
-      cleaned++;
-    }
+  for (const id of resolvedSelfIds) {
+    if (data[id]) { delete data[id]; cleaned++; }
   }
   if (cleaned > 0) {
     saveConversations(data);
-    log('Cleaned self-conversations', { removed: cleaned, selfIds });
+    log('Cleaned self-conversations', { removed: cleaned, resolvedSelfIds });
   }
 }
 
