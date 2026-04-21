@@ -40,11 +40,14 @@ function saveBotState() {
   fs.writeFileSync(STATE_FILE, JSON.stringify(botState, null, 2));
 }
 
+// In-memory store — primary source of truth; file is backup for cold start
+let conversationsCache = null;
+
 function loadConversations() {
+  if (conversationsCache !== null) return conversationsCache;
   if (fs.existsSync(LOG_FILE)) {
     try {
       const raw = JSON.parse(fs.readFileSync(LOG_FILE, 'utf8'));
-      // Migrate old flat-array format
       const out = {};
       for (const [id, data] of Object.entries(raw)) {
         if (Array.isArray(data)) {
@@ -53,21 +56,36 @@ function loadConversations() {
           out[id] = data;
         }
       }
-      return out;
-    } catch {}
+      conversationsCache = out;
+      log('Conversations loaded from file', { total: Object.keys(out).length });
+      return conversationsCache;
+    } catch (err) {
+      log('Failed to load conversations file', err.message);
+    }
   }
-  return {};
+  conversationsCache = {};
+  return conversationsCache;
 }
 
 function saveConversations(data) {
-  fs.writeFileSync(LOG_FILE, JSON.stringify(data, null, 2));
+  conversationsCache = data;
+  try {
+    fs.writeFileSync(LOG_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    log('Failed to write conversations file', err.message);
+  }
 }
 
 function appendMessage(senderId, type, text) {
   const data = loadConversations();
-  if (!data[senderId]) data[senderId] = { profile: { name: '', username: '', status: 'New' }, messages: [] };
+  if (!data[senderId]) {
+    data[senderId] = { profile: { name: '', username: '', status: 'New' }, messages: [] };
+    log('New conversation created', { senderId });
+  }
   data[senderId].messages.push({ type, text, time: new Date().toISOString() });
   saveConversations(data);
+  log(`Message stored from ${senderId}`, { type, text: text.slice(0, 60) });
+  log('Total conversations', Object.keys(data).length);
 }
 
 function updateProfile(senderId, name, username) {
