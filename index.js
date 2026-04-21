@@ -159,7 +159,7 @@ function getRecentSenders(limit = 10) {
       profile: conv.profile || { name: '', username: '', status: 'New' },
       lastMessage: (conv.messages || []).slice(-1)[0] || null,
     }))
-    .filter(c => c.lastMessage)
+    .filter(c => c.lastMessage && c.profile.status !== 'Ignored')
     .sort((a, b) => new Date(b.lastMessage.time) - new Date(a.lastMessage.time))
     .slice(0, limit);
 }
@@ -486,6 +486,7 @@ async function renderDialog(telegramUserId, senderId) {
     { text: '✍️ Custom reply', callback_data: 'custom' },
     { text: '✅ Mark as Client', callback_data: 'mark_client' },
   ]);
+  keyboard.push([{ text: '🚫 Ignore conversation', callback_data: 'ignore_conv' }]);
   const lastRow = [{ text: '🔁 Follow-up later', callback_data: 'followup' }, { text: '🔙 Back', callback_data: 'inbox' }];
   if (profile.username) {
     keyboard.push([{ text: '🔗 Open Instagram', url: `https://instagram.com/${profile.username}` }]);
@@ -658,6 +659,13 @@ app.post('/webhook', async (req, res) => {
       const clientId = senderId;
       appendMessage(clientId, 'incoming', text);
 
+      // If previously ignored, restore to inbox
+      const existingProfile = getProfile(clientId);
+      if (existingProfile.status === 'Ignored') {
+        setStatus(clientId, 'New');
+        log('Ignored conversation restored to inbox', { clientId });
+      }
+
       const user = await getInstagramUser(clientId);
       if (user) updateProfile(clientId, user.name, user.username);
 
@@ -669,7 +677,10 @@ app.post('/webhook', async (req, res) => {
         .filter(([, s]) => s.screen === 'dialog' && s.selectedSenderId === clientId)
         .map(([tgId]) => tgId);
 
-      if (openDialogUsers.length > 0) {
+      const currentProfile = getProfile(clientId);
+      if (currentProfile.status === 'Ignored') {
+        log('Skipping notification for ignored conversation', { clientId });
+      } else if (openDialogUsers.length > 0) {
         // Refresh the open dialog so new message appears in history
         for (const tgId of openDialogUsers) {
           await showDialog(tgId, clientId);
@@ -745,6 +756,15 @@ app.post('/telegram', async (req, res) => {
         log('Marked as Client', { selectedSenderId });
       }
       await renderDialog(telegramUserId, selectedSenderId);
+
+    } else if (data === 'ignore_conv') {
+      const { selectedSenderId } = userState[telegramUserId];
+      if (selectedSenderId) {
+        setStatus(selectedSenderId, 'Ignored');
+        removeNotification(selectedSenderId);
+        log('Conversation ignored', { selectedSenderId });
+      }
+      await editUIMessage('Conversation ignored ✅', [[{ text: '🔙 Back to Inbox', callback_data: 'inbox' }]]);
 
     } else if (data === 'followup') {
       // Follow-up: no status change, just re-render dialog
