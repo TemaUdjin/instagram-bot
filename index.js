@@ -18,6 +18,7 @@ const PAGE_ID = process.env.PAGE_ID;
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const LOG_FILE = path.join(__dirname, 'conversations.json');
 const STATE_FILE = path.join(__dirname, 'bot_state.json');
+const STYLE_FILE = path.join(__dirname, 'style_profile.json');
 
 // ─── Bot state ────────────────────────────────────────────────────────────────
 
@@ -242,6 +243,33 @@ async function checkTokenPermissions() {
   }
 }
 
+// ─── Style profile ────────────────────────────────────────────────────────────
+
+let styleCache = null;
+
+function loadStyleProfile() {
+  if (styleCache !== null) return styleCache;
+  if (fs.existsSync(STYLE_FILE)) {
+    try {
+      styleCache = JSON.parse(fs.readFileSync(STYLE_FILE, 'utf8'));
+      return styleCache;
+    } catch {}
+  }
+  styleCache = { examples: [] };
+  return styleCache;
+}
+
+function saveStyleExample(text) {
+  const profile = loadStyleProfile();
+  profile.examples.push({ text, time: new Date().toISOString() });
+  if (profile.examples.length > 50) profile.examples = profile.examples.slice(-50);
+  styleCache = profile;
+  try { fs.writeFileSync(STYLE_FILE, JSON.stringify(profile, null, 2)); } catch (err) {
+    log('Failed to save style example', err.message);
+  }
+  log('Style example saved', { text: text.slice(0, 60), total: profile.examples.length });
+}
+
 // ─── Claude ───────────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `You are a high-level coach in mobility, flexibility, handstand, bodyweight strength, and yoga. You understand joint health and basic rehab. Not a doctor, a practical coach.
@@ -272,20 +300,49 @@ FOLLOW UP if hesitating: "I am also putting together an online program, more aff
 RULES: Never dump info. If unsure what they need, ask. Respond in the same language the client writes in.`;
 
 async function generateSuggestions(lastMessage, clientName, history) {
-  const nameHint = clientName ? `The client's name is ${clientName}. Use their name naturally once if it feels right.` : '';
+  const nameHint = clientName ? `Client name: ${clientName}. Use naturally once if it fits.` : '';
+
+  const styleExamples = loadStyleProfile().examples.slice(-15);
+  const examplesSection = styleExamples.length > 0
+    ? `\n\nREAL MESSAGES SENT BY THIS COACH — learn tone, length, and style from these (most recent = highest priority):\n${styleExamples.map(e => `"${e.text}"`).join('\n')}`
+    : '';
+
   const historyText = history.map(m =>
     `${m.type === 'incoming' ? 'Client' : 'Coach'}: ${m.text}`
   ).join('\n');
 
-  const userContent = historyText
-    ? `Conversation:\n${historyText}\n\nGenerate exactly 3 short reply options for the last client message.\nFormat:\n1. [reply]\n2. [reply]\n3. [reply]`
-    : `Client message: "${lastMessage}"\n\nGenerate exactly 3 short reply options.\nFormat:\n1. [reply]\n2. [reply]\n3. [reply]`;
+  const convContext = historyText
+    ? `Conversation so far:\n${historyText}`
+    : `Client message: "${lastMessage}"`;
+
+  const system = `${SYSTEM_PROMPT}
+${nameHint}
+${examplesSection}
+
+CONVERSATION FLOW (follow naturally, do not rush):
+1. Connect — acknowledge their message, reflect their situation back briefly
+2. Understand — ask 1 simple focused question
+3. Guide — suggest a direction when you have enough context
+4. Offer (only when they feel warm or ready) — say something like: "I work 1:1 with people on this, adjusting everything to their level." Then stop.
+5. If they hesitate or go quiet — after some time, mention softly: "I'm also putting together a video program, more affordable and self-paced. I can add you to the waitlist if you want."
+
+DETECT AND RESPOND TO:
+- Intent: curious / warm / ready / cold
+- Stage: new / exploring / considering / decision
+
+VIDEO SUGGESTION: Only if natural and relevant — "You can send me a short video if you want, I'll take a look."
+
+Generate exactly 3 short reply options in the coach's real voice.
+Format strictly:
+1. [reply]
+2. [reply]
+3. [reply]`;
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 300,
-    system: `${SYSTEM_PROMPT}\n\n${nameHint}`,
-    messages: [{ role: 'user', content: userContent }]
+    max_tokens: 400,
+    system,
+    messages: [{ role: 'user', content: `${convContext}\n\nGenerate 3 reply options for the last client message.` }]
   });
 
   const raw = message.content[0].text.trim();
@@ -657,7 +714,16 @@ app.post('/webhook', async (req, res) => {
 
       // clientId is always the person writing TO us
       const clientId = senderId;
-      appendMessage(clientId, 'incoming', text);
+
+      // Detect media attachments
+      const attachments = event.message.attachments || [];
+      const hasVideo = attachments.some(a => ['video', 'ig_reel'].includes(a.type));
+      const hasImage = attachments.some(a => a.type === 'image');
+      const messageText = text !== '(no text)'
+        ? text
+        : hasVideo ? '[📹 Video]' : hasImage ? '[🖼️ Image]' : '[attachment]';
+
+      appendMessage(clientId, 'incoming', messageText);
 
       // If previously ignored, restore to inbox
       const existingProfile = getProfile(clientId);
@@ -671,6 +737,11 @@ app.post('/webhook', async (req, res) => {
 
       const profile = getProfile(clientId);
       const name = displayName(profile, clientId);
+
+      // For video: add special alert label to notification
+      const notifLabel = hasVideo
+        ? `${name} sent a 📹 video — reply manually`
+        : name;
 
       // Check if this sender's dialog is currently open
       const openDialogUsers = Object.entries(userState)
@@ -687,7 +758,7 @@ app.post('/webhook', async (req, res) => {
         }
       } else {
         // Queue notification and overlay on current screen
-        addNotification(clientId, name, profile.username);
+        addNotification(clientId, notifLabel, profile.username);
         await refreshUIWithNotifications();
       }
     }
@@ -779,6 +850,7 @@ app.post('/telegram', async (req, res) => {
       if (result.ok) {
         appendMessage(selectedSenderId, 'outgoing', pendingReply);
         setStatus(selectedSenderId, 'Replied');
+        saveStyleExample(pendingReply);
         userState[telegramUserId].pendingReply = null;
         userState[telegramUserId].suggestions = [];
         log('Message sent', { selectedSenderId, pendingReply });
