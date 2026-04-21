@@ -17,40 +17,102 @@ const PAGE_ID = process.env.PAGE_ID;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const LOG_FILE = path.join(__dirname, 'conversations.json');
+const STATE_FILE = path.join(__dirname, 'bot_state.json');
 
-// keyed by instagram sender_id → { suggestedReply }
-const pendingReplies = {};
-// keyed by telegram user_id → instagram sender_id
-const selectedSender = {};
+// ─── Bot state ────────────────────────────────────────────────────────────────
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+const botState = loadBotState();
+// Last rendered UI content — used to overlay notifications without changing screen
+let currentUIContent = { text: '', keyboard: [] };
+// Per-telegram-user session: screen, selectedSenderId, suggestions, pendingReply
+const userState = {};
+
+// ─── Persistence ──────────────────────────────────────────────────────────────
+
+function loadBotState() {
+  if (fs.existsSync(STATE_FILE)) {
+    try { return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')); } catch {}
+  }
+  return { uiMessageId: null };
+}
+
+function saveBotState() {
+  fs.writeFileSync(STATE_FILE, JSON.stringify(botState, null, 2));
+}
 
 function loadConversations() {
   if (fs.existsSync(LOG_FILE)) {
-    try { return JSON.parse(fs.readFileSync(LOG_FILE, 'utf8')); } catch {}
+    try {
+      const raw = JSON.parse(fs.readFileSync(LOG_FILE, 'utf8'));
+      // Migrate old flat-array format
+      const out = {};
+      for (const [id, data] of Object.entries(raw)) {
+        if (Array.isArray(data)) {
+          out[id] = { profile: { name: '', username: '', status: 'New' }, messages: data };
+        } else {
+          out[id] = data;
+        }
+      }
+      return out;
+    } catch {}
   }
   return {};
 }
 
+function saveConversations(data) {
+  fs.writeFileSync(LOG_FILE, JSON.stringify(data, null, 2));
+}
+
 function appendMessage(senderId, type, text) {
   const data = loadConversations();
-  if (!data[senderId]) data[senderId] = [];
-  data[senderId].push({ type, text, time: new Date().toISOString() });
-  fs.writeFileSync(LOG_FILE, JSON.stringify(data, null, 2));
+  if (!data[senderId]) data[senderId] = { profile: { name: '', username: '', status: 'New' }, messages: [] };
+  data[senderId].messages.push({ type, text, time: new Date().toISOString() });
+  saveConversations(data);
+}
+
+function updateProfile(senderId, name, username) {
+  const data = loadConversations();
+  if (!data[senderId]) data[senderId] = { profile: { name: '', username: '', status: 'New' }, messages: [] };
+  if (name) data[senderId].profile.name = name;
+  if (username) data[senderId].profile.username = username;
+  saveConversations(data);
+}
+
+function setStatus(senderId, status) {
+  const data = loadConversations();
+  if (!data[senderId]) data[senderId] = { profile: { name: '', username: '', status }, messages: [] };
+  else data[senderId].profile.status = status;
+  saveConversations(data);
 }
 
 function getHistory(senderId, limit = 5) {
   const data = loadConversations();
-  const msgs = data[senderId] || [];
+  const msgs = data[senderId]?.messages || [];
   return msgs.slice(-limit);
 }
 
-function formatHistory(history) {
-  if (history.length === 0) return '(no previous messages)';
-  return history.map(m => {
-    const arrow = m.type === 'incoming' ? '👤' : '🤖';
-    return `${arrow} ${m.text}`;
-  }).join('\n');
+function getProfile(senderId) {
+  const data = loadConversations();
+  return data[senderId]?.profile || { name: '', username: '', status: 'New' };
+}
+
+function getRecentSenders(limit = 10) {
+  const data = loadConversations();
+  return Object.entries(data)
+    .map(([id, conv]) => ({
+      senderId: id,
+      profile: conv.profile || { name: '', username: '', status: 'New' },
+      lastMessage: (conv.messages || []).slice(-1)[0] || null,
+    }))
+    .filter(c => c.lastMessage)
+    .sort((a, b) => new Date(b.lastMessage.time) - new Date(a.lastMessage.time))
+    .slice(0, limit);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function displayName(profile, senderId) {
+  return profile.name || profile.username || senderId;
 }
 
 function removeDashes(text) {
@@ -78,7 +140,6 @@ async function getInstagramUser(userId) {
     const res = await axios.get(`https://graph.instagram.com/v19.0/${userId}`, {
       params: { fields: 'name,username', access_token: PAGE_ACCESS_TOKEN }
     });
-    log('IG user lookup', res.data);
     return res.data;
   } catch (err) {
     log('IG user lookup failed', err.response?.data || err.message);
@@ -88,10 +149,9 @@ async function getInstagramUser(userId) {
 
 async function sendInstagramMessage(recipientId, text) {
   const url = `https://graph.instagram.com/v19.0/${BUSINESS_ACCOUNT_ID}/messages`;
-  const payload = { recipient: { id: recipientId }, message: { text } };
-  log('IG send →', { url, recipientId, text });
+  log('IG send →', { recipientId, text });
   try {
-    const res = await axios.post(url, payload, {
+    const res = await axios.post(url, { recipient: { id: recipientId }, message: { text } }, {
       params: { access_token: PAGE_ACCESS_TOKEN }
     });
     log('✅ IG sent', res.data);
@@ -99,9 +159,6 @@ async function sendInstagramMessage(recipientId, text) {
   } catch (err) {
     const errData = err.response?.data || err.message;
     log('❌ IG send failed', errData);
-    await sendTelegramMessage(
-      `❌ Instagram send failed\nRecipient: ${recipientId}\nError: ${JSON.stringify(errData, null, 2)}`
-    );
     return { ok: false, error: errData };
   }
 }
@@ -132,12 +189,7 @@ async function checkTokenPermissions() {
 
 // ─── Claude ───────────────────────────────────────────────────────────────────
 
-async function generateReply(incomingText, clientName) {
-  const nameHint = clientName ? `The client's name is ${clientName}. Use their name naturally once if it feels right.` : '';
-  const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 150,
-    system: `You are a high-level coach in mobility, flexibility, handstand, bodyweight strength, and yoga. You understand joint health and basic rehab. Not a doctor, a practical coach.
+const SYSTEM_PROMPT = `You are a high-level coach in mobility, flexibility, handstand, bodyweight strength, and yoga. You understand joint health and basic rehab. Not a doctor, a practical coach.
 
 TRAINING: Sessions combine yoga, mobility work and bodyweight training. Shoulders, spine, hips, full body control. 1h to 1h40min. Any level.
 
@@ -162,62 +214,211 @@ WHEN PRICE IS ASKED: "One session is 70 euro, adjusted to your level and goals."
 
 FOLLOW UP if hesitating: "I am also putting together an online program, more affordable and self paced. Can let you know when it drops." No pressure.
 
-RULES: Never dump info. If unsure what they need, ask. Respond in the same language the client writes in.
+RULES: Never dump info. If unsure what they need, ask. Respond in the same language the client writes in.`;
 
-${nameHint}`,
-    messages: [{ role: 'user', content: incomingText }]
+async function generateSuggestions(lastMessage, clientName, history) {
+  const nameHint = clientName ? `The client's name is ${clientName}. Use their name naturally once if it feels right.` : '';
+  const historyText = history.map(m =>
+    `${m.type === 'incoming' ? 'Client' : 'Coach'}: ${m.text}`
+  ).join('\n');
+
+  const userContent = historyText
+    ? `Conversation:\n${historyText}\n\nGenerate exactly 3 short reply options for the last client message.\nFormat:\n1. [reply]\n2. [reply]\n3. [reply]`
+    : `Client message: "${lastMessage}"\n\nGenerate exactly 3 short reply options.\nFormat:\n1. [reply]\n2. [reply]\n3. [reply]`;
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 300,
+    system: `${SYSTEM_PROMPT}\n\n${nameHint}`,
+    messages: [{ role: 'user', content: userContent }]
   });
-  return removeDashes(message.content[0].text.trim());
+
+  const raw = message.content[0].text.trim();
+  return raw.split('\n')
+    .filter(l => /^\d\./.test(l.trim()))
+    .map(l => removeDashes(l.replace(/^\d\.\s*/, '').trim()))
+    .filter(Boolean)
+    .slice(0, 3);
 }
 
-// ─── Telegram ─────────────────────────────────────────────────────────────────
+// ─── Telegram core ────────────────────────────────────────────────────────────
 
-async function sendTelegramMessage(text) {
+async function sendRawMessage(text) {
   try {
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-      chat_id: CHAT_ID,
-      text
+    const res = await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+      chat_id: CHAT_ID, text,
     });
-  } catch (error) {
-    console.error('[Telegram send error]', error.response?.data || error.message);
+    return res.data.result;
+  } catch (err) {
+    console.error('[Telegram send error]', err.response?.data || err.message);
+    return null;
   }
 }
 
-async function sendTelegramMessageWithButton(text, instagramSenderId) {
+async function getOrCreateUIMessage() {
+  if (botState.uiMessageId) return botState.uiMessageId;
+  const result = await sendRawMessage('📥 Loading inbox...');
+  if (result) {
+    botState.uiMessageId = result.message_id;
+    saveBotState();
+  }
+  return botState.uiMessageId;
+}
+
+async function editUIMessage(text, inlineKeyboard = []) {
+  currentUIContent = { text, keyboard: inlineKeyboard };
+  const msgId = await getOrCreateUIMessage();
   try {
-    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
       chat_id: CHAT_ID,
+      message_id: msgId,
       text,
-      reply_markup: {
-        inline_keyboard: [[{ text: '💬 Reply', callback_data: `reply_${instagramSenderId}` }]]
-      }
+      reply_markup: { inline_keyboard: inlineKeyboard },
     });
-  } catch (error) {
-    console.error('[Telegram send error]', error.response?.data || error.message);
+  } catch (err) {
+    const desc = err.response?.data?.description || '';
+    if (desc.includes('message is not modified')) return;
+    if (desc.includes('message to edit not found') || desc.includes('MESSAGE_ID_INVALID')) {
+      botState.uiMessageId = null;
+      saveBotState();
+      await getOrCreateUIMessage();
+      await editUIMessage(text, inlineKeyboard);
+    } else {
+      console.error('[editUIMessage error]', desc);
+    }
   }
 }
 
-async function answerCallbackQuery(callbackQueryId, text) {
+async function answerCallbackQuery(id, text = '') {
   try {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/answerCallbackQuery`, {
-      callback_query_id: callbackQueryId,
-      text
+      callback_query_id: id, text,
     });
   } catch {}
 }
 
-// ─── Utils ────────────────────────────────────────────────────────────────────
+// ─── Screens ──────────────────────────────────────────────────────────────────
 
-function buildClientCard(user, senderId) {
-  if (!user || (!user.name && !user.username)) {
-    return `User ID: ${senderId}`;
+async function showInbox(telegramUserId) {
+  userState[telegramUserId] = { screen: 'inbox', selectedSenderId: null, suggestions: [], pendingReply: null };
+
+  const senders = getRecentSenders(10);
+  let text = '📥 Inbox\n\n';
+
+  if (senders.length === 0) {
+    text += 'No conversations yet.';
+  } else {
+    for (const s of senders) {
+      const name = displayName(s.profile, s.senderId);
+      const preview = (s.lastMessage?.text || '').slice(0, 40);
+      text += `${name} • ${s.profile.status || 'New'}\n"${preview}"\n\n`;
+    }
   }
-  const name = user.name || user.username;
-  const username = user.username;
-  if (username) {
-    return `Name: ${name}\nUsername: @${username}\nProfile: https://instagram.com/${username}\nUser ID: ${senderId}`;
+
+  const keyboard = senders.map(s => [{
+    text: `👤 ${displayName(s.profile, s.senderId)}`,
+    callback_data: `dialog_${s.senderId}`,
+  }]);
+
+  await editUIMessage(text.trimEnd(), keyboard);
+}
+
+async function showDialog(telegramUserId, senderId) {
+  userState[telegramUserId] = { screen: 'dialog', selectedSenderId: senderId, suggestions: [], pendingReply: null };
+
+  // Show loading state immediately
+  const profile = getProfile(senderId);
+  const history = getHistory(senderId, 5);
+  const name = displayName(profile, senderId);
+  const usernameStr = profile.username ? ` (@${profile.username})` : '';
+
+  let text = `👤 ${name}${usernameStr}\nStatus: ${profile.status || 'New'}\n\n`;
+  for (const m of history) {
+    text += `${m.type === 'incoming' ? name : 'You'}: ${m.text}\n`;
   }
-  return `Name: ${name}\nUser ID: ${senderId}`;
+  text += '\n💡 Generating suggestions...';
+
+  await editUIMessage(text, [[{ text: '🔙 Back', callback_data: 'inbox' }]]);
+
+  // Generate suggestions async
+  try {
+    const lastIncoming = [...history].reverse().find(m => m.type === 'incoming');
+    const suggestions = await generateSuggestions(
+      lastIncoming?.text || '',
+      profile.name || profile.username,
+      history
+    );
+    userState[telegramUserId].suggestions = suggestions;
+  } catch (err) {
+    log('Suggestions error', err.message);
+    userState[telegramUserId].suggestions = [];
+  }
+
+  await renderDialog(telegramUserId, senderId);
+}
+
+async function renderDialog(telegramUserId, senderId) {
+  const profile = getProfile(senderId);
+  const history = getHistory(senderId, 5);
+  const suggestions = userState[telegramUserId]?.suggestions || [];
+  const name = displayName(profile, senderId);
+  const usernameStr = profile.username ? ` (@${profile.username})` : '';
+
+  let text = `👤 ${name}${usernameStr}\nStatus: ${profile.status || 'New'}\n\n`;
+  for (const m of history) {
+    text += `${m.type === 'incoming' ? name : 'You'}: ${m.text}\n`;
+  }
+
+  if (suggestions.length > 0) {
+    text += '\n💡 Suggested replies:\n';
+    suggestions.forEach((s, i) => { text += `\n${i + 1}. ${s}`; });
+  }
+
+  const keyboard = [];
+  suggestions.forEach((_, i) => {
+    keyboard.push([
+      { text: `Send ${i + 1}`, callback_data: `send_${i}` },
+      { text: `Edit ${i + 1}`, callback_data: `edit_${i}` },
+    ]);
+  });
+  keyboard.push([
+    { text: '✍️ Custom reply', callback_data: 'custom' },
+    { text: '✅ Mark as Client', callback_data: 'mark_client' },
+  ]);
+  keyboard.push([
+    { text: '🔁 Follow-up later', callback_data: 'followup' },
+    { text: '🔙 Back', callback_data: 'inbox' },
+  ]);
+
+  await editUIMessage(text, keyboard);
+}
+
+async function showConfirm(telegramUserId, replyText) {
+  const state = userState[telegramUserId];
+  const profile = getProfile(state.selectedSenderId);
+  const name = displayName(profile, state.selectedSenderId);
+  const usernameStr = profile.username ? ` (@${profile.username})` : '';
+
+  state.pendingReply = replyText;
+  state.screen = 'confirm';
+
+  const text = `Sending to: ${name}${usernameStr}\n\n"${replyText}"`;
+  await editUIMessage(text, [[
+    { text: '✅ Confirm Send', callback_data: 'confirm_send' },
+    { text: '❌ Cancel', callback_data: `dialog_${state.selectedSenderId}` },
+  ]]);
+}
+
+async function showCustomReply(telegramUserId, prefillText = null) {
+  const state = userState[telegramUserId];
+  state.screen = 'custom_reply';
+
+  let text = '✍️ Type your reply and send it here.';
+  if (prefillText) text += `\n\nSuggestion for reference:\n"${prefillText}"`;
+
+  await editUIMessage(text, [[
+    { text: '❌ Cancel', callback_data: `dialog_${state.selectedSenderId}` },
+  ]]);
 }
 
 // ─── Routes: diagnostics ──────────────────────────────────────────────────────
@@ -255,8 +456,7 @@ app.get('/health', async (req, res) => {
     }
   };
 
-  const allOk = tokenCheck.valid && claudeOk && telegramOk;
-  res.status(allOk ? 200 : 503).json(status);
+  res.status(tokenCheck.valid && claudeOk && telegramOk ? 200 : 503).json(status);
 });
 
 app.get('/debug-token', async (req, res) => {
@@ -264,17 +464,10 @@ app.get('/debug-token', async (req, res) => {
   const tokenType = token.startsWith('IGAA') ? 'IGAA (Instagram long-lived — correct)' :
                     token.startsWith('EAAX') ? 'EAAXfm (Facebook user — wrong type)' :
                     token ? 'unknown type' : 'missing';
-
   const validity = await checkTokenValidity();
   const permissions = await checkTokenPermissions();
-
   res.json({
-    token_preview: {
-      starts_with: token.slice(0, 15),
-      ends_with: token.slice(-10),
-      length: token.length,
-      type: tokenType,
-    },
+    token_preview: { starts_with: token.slice(0, 15), ends_with: token.slice(-10), length: token.length, type: tokenType },
     valid: validity.valid,
     account: validity.account || null,
     error: validity.error || null,
@@ -285,8 +478,8 @@ app.get('/debug-token', async (req, res) => {
 
 app.get('/test-claude', async (req, res) => {
   try {
-    const result = await generateReply('How much is a session?', null);
-    res.json({ ok: true, reply: result });
+    const suggestions = await generateSuggestions('How much is a session?', null, []);
+    res.json({ ok: true, suggestions });
   } catch (err) {
     res.json({ ok: false, error: err.message });
   }
@@ -325,7 +518,6 @@ app.get('/webhook', (req, res) => {
 
 app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
-
   const body = req.body;
   log('Webhook received', body);
 
@@ -341,7 +533,7 @@ app.post('/webhook', async (req, res) => {
       const senderId = event.sender.id;
       const recipientId = event.recipient.id;
       const text = event.message.text || '(no text)';
-      log('Incoming DM', { senderId, recipientId, text, entryId: entry.id });
+      log('Incoming DM', { senderId, recipientId, text });
 
       if (senderId === PAGE_ID || senderId === BUSINESS_ACCOUNT_ID) {
         log('Ignored self message', { senderId, text });
@@ -351,81 +543,116 @@ app.post('/webhook', async (req, res) => {
       appendMessage(senderId, 'incoming', text);
 
       const user = await getInstagramUser(senderId);
-      const clientCard = buildClientCard(user, senderId);
-      const clientName = user?.name || user?.username || null;
-      const history = getHistory(senderId, 5);
+      if (user) updateProfile(senderId, user.name, user.username);
 
-      await sendTelegramMessageWithButton(
-        `New Instagram DM:\n\n${clientCard}\n\nHistory:\n${formatHistory(history)}\n\nMessage:\n"${text}"`,
-        senderId
-      );
+      const profile = getProfile(senderId);
+      const name = displayName(profile, senderId);
 
-      try {
-        const suggested = await generateReply(text, clientName);
-        pendingReplies[senderId] = { suggestedReply: suggested };
-        log('Suggested reply stored', { senderId, suggested });
-
-        await sendTelegramMessage(`🤖 Suggested reply:\n"${suggested}"\n\nClick Reply above, then send your text or "+" to accept.`);
-      } catch (err) {
-        log('Claude error', err.message);
-        pendingReplies[senderId] = { suggestedReply: null };
-        await sendTelegramMessage(`⚠️ Claude unavailable. Click Reply above, then send your text.`);
+      // Overlay notification on current screen without interrupting it
+      const notif = `🔔 New message from ${name}`;
+      const msgId = await getOrCreateUIMessage();
+      if (msgId && currentUIContent.text) {
+        try {
+          await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+            chat_id: CHAT_ID,
+            message_id: msgId,
+            text: `${notif}\n\n${currentUIContent.text}`,
+            reply_markup: { inline_keyboard: currentUIContent.keyboard },
+          });
+        } catch {}
       }
     }
   }
 });
 
-// ─── Routes: Telegram replies ─────────────────────────────────────────────────
+// ─── Routes: Telegram ────────────────────────────────────────────────────────
 
 app.post('/telegram', async (req, res) => {
   res.sendStatus(200);
   const body = req.body;
 
-  // Handle inline button click
+  const telegramUserId = String(
+    body.callback_query?.from?.id || body.message?.from?.id || ''
+  );
+  if (!telegramUserId) return;
+
+  if (!userState[telegramUserId]) {
+    userState[telegramUserId] = { screen: 'inbox', selectedSenderId: null, suggestions: [], pendingReply: null };
+  }
+
+  // ── Button click ──────────────────────────────────────────────────────────
   if (body.callback_query) {
     const query = body.callback_query;
-    const telegramUserId = String(query.from.id);
     const data = query.data;
+    await answerCallbackQuery(query.id);
 
-    if (data.startsWith('reply_')) {
-      const targetSenderId = data.slice('reply_'.length);
-      selectedSender[telegramUserId] = targetSenderId;
-      log('Reply target selected', { telegramUserId, targetSenderId });
-      await answerCallbackQuery(query.id, '✅ Selected');
-      await sendTelegramMessage(`💬 Reply mode ON\nSending to: ${targetSenderId}\n\nSend your text or "+" to use suggested reply.`);
+    if (data === 'inbox') {
+      await showInbox(telegramUserId);
+
+    } else if (data.startsWith('dialog_')) {
+      const senderId = data.slice('dialog_'.length);
+      log('Dialog opened', { telegramUserId, senderId });
+      await showDialog(telegramUserId, senderId);
+
+    } else if (data.startsWith('send_')) {
+      const idx = parseInt(data.slice('send_'.length));
+      const suggestion = userState[telegramUserId].suggestions[idx];
+      if (suggestion) await showConfirm(telegramUserId, suggestion);
+
+    } else if (data.startsWith('edit_')) {
+      const idx = parseInt(data.slice('edit_'.length));
+      const suggestion = userState[telegramUserId].suggestions[idx];
+      await showCustomReply(telegramUserId, suggestion || null);
+
+    } else if (data === 'custom') {
+      await showCustomReply(telegramUserId);
+
+    } else if (data === 'mark_client') {
+      const { selectedSenderId } = userState[telegramUserId];
+      if (selectedSenderId) {
+        setStatus(selectedSenderId, 'Client');
+        log('Marked as Client', { selectedSenderId });
+      }
+      await renderDialog(telegramUserId, selectedSenderId);
+
+    } else if (data === 'followup') {
+      // Follow-up: no status change, just re-render dialog
+      const { selectedSenderId } = userState[telegramUserId];
+      await renderDialog(telegramUserId, selectedSenderId);
+
+    } else if (data === 'confirm_send') {
+      const { selectedSenderId, pendingReply } = userState[telegramUserId];
+      log('Sending message', { selectedSenderId, pendingReply });
+
+      const result = await sendInstagramMessage(selectedSenderId, pendingReply);
+      if (result.ok) {
+        appendMessage(selectedSenderId, 'outgoing', pendingReply);
+        setStatus(selectedSenderId, 'Replied');
+        userState[telegramUserId].pendingReply = null;
+        log('Message sent', { selectedSenderId, pendingReply });
+        await showDialog(telegramUserId, selectedSenderId);
+      } else {
+        log('Send failed', result.error);
+        await editUIMessage(
+          `❌ Failed to send:\n${JSON.stringify(result.error, null, 2)}`,
+          [[{ text: '🔙 Back', callback_data: `dialog_${selectedSenderId}` }]]
+        );
+      }
     }
     return;
   }
 
-  // Handle text message
+  // ── Text message ──────────────────────────────────────────────────────────
   const message = body.message;
   if (!message || !message.text) return;
 
+  const state = userState[telegramUserId];
   const text = message.text.trim();
-  const telegramUserId = String(message.from.id);
-  const targetSenderId = selectedSender[telegramUserId];
 
-  if (!targetSenderId) {
-    await sendTelegramMessage('⚠️ No sender selected. Click the Reply button on a message first.');
-    return;
-  }
-
-  const pending = pendingReplies[targetSenderId];
-  const finalReply = text === '+' ? pending?.suggestedReply : text;
-
-  if (!finalReply) {
-    await sendTelegramMessage('⚠️ No suggested reply available. Send the text you want to send.');
-    return;
-  }
-
-  log('Sending reply', { telegramUserId, targetSenderId, finalReply });
-
-  const result = await sendInstagramMessage(targetSenderId, finalReply);
-  if (result.ok) {
-    appendMessage(targetSenderId, 'outgoing', finalReply);
-    delete selectedSender[telegramUserId];
-    delete pendingReplies[targetSenderId];
-    await sendTelegramMessage(`✅ Sent to Instagram (${targetSenderId}):\n"${finalReply}"`);
+  if (state.screen === 'custom_reply' && state.selectedSenderId) {
+    await showConfirm(telegramUserId, text);
+  } else {
+    await showInbox(telegramUserId);
   }
 });
 
@@ -440,5 +667,5 @@ app.listen(PORT, async () => {
     token_type: PAGE_ACCESS_TOKEN?.startsWith('IGAA') ? 'IGAA ✅' : 'wrong type ❌',
     token_preview: PAGE_ACCESS_TOKEN?.slice(0, 15) + '...',
   });
-  await sendTelegramMessage('Bot is live 🚀');
+  await showInbox(CHAT_ID);
 });
