@@ -363,18 +363,26 @@ async function showDialog(telegramUserId, senderId) {
 
   await editUIMessage(text, [[{ text: '🔙 Back', callback_data: 'inbox' }]]);
 
-  // Generate suggestions async
-  try {
-    const lastIncoming = [...history].reverse().find(m => m.type === 'incoming');
-    const suggestions = await generateSuggestions(
-      lastIncoming?.text || '',
-      profile.name || profile.username,
-      history
-    );
-    userState[telegramUserId].suggestions = suggestions;
-  } catch (err) {
-    log('Suggestions error', err.message);
+  // Only generate suggestions when last message is from client
+  const lastMessage = history[history.length - 1];
+  const shouldSuggest = lastMessage && lastMessage.type === 'incoming';
+
+  if (shouldSuggest) {
+    try {
+      const suggestions = await generateSuggestions(
+        lastMessage.text,
+        profile.name || profile.username,
+        history
+      );
+      userState[telegramUserId].suggestions = suggestions;
+      log('Suggestions generated', { senderId, count: suggestions.length });
+    } catch (err) {
+      log('Suggestions error', err.message);
+      userState[telegramUserId].suggestions = [];
+    }
+  } else {
     userState[telegramUserId].suggestions = [];
+    log('No suggestions — last message is outgoing', { senderId });
   }
 
   await renderDialog(telegramUserId, senderId);
@@ -387,31 +395,44 @@ async function renderDialog(telegramUserId, senderId) {
   const name = displayName(profile, senderId);
   const usernameStr = profile.username ? ` (@${profile.username})` : '';
 
-  let text = `👤 ${name}${usernameStr}\nStatus: ${profile.status || 'New'}\n\n`;
+  // Header with profile info
+  let text = `👤 ${name}${usernameStr}\n`;
+  if (profile.username) text += `instagram.com/${profile.username}\n`;
+  text += `Status: ${profile.status || 'New'}\n\n`;
+
+  // Message history
   for (const m of history) {
     text += `${m.type === 'incoming' ? name : 'You'}: ${m.text}\n`;
   }
 
-  if (suggestions.length > 0) {
+  // Suggestions (only when last message is from client)
+  const lastMessage = history[history.length - 1];
+  const lastIncoming = lastMessage?.type === 'incoming' ? lastMessage : null;
+
+  if (suggestions.length > 0 && lastIncoming) {
+    text += `\nReplying to:\n"${lastIncoming.text}"\n`;
     text += '\n💡 Suggested replies:\n';
     suggestions.forEach((s, i) => { text += `\n${i + 1}. ${s}`; });
   }
 
   const keyboard = [];
-  suggestions.forEach((_, i) => {
-    keyboard.push([
-      { text: `Send ${i + 1}`, callback_data: `send_${i}` },
-      { text: `Edit ${i + 1}`, callback_data: `edit_${i}` },
-    ]);
-  });
+  if (suggestions.length > 0 && lastIncoming) {
+    suggestions.forEach((_, i) => {
+      keyboard.push([
+        { text: `Send ${i + 1}`, callback_data: `send_${i}` },
+        { text: `Edit ${i + 1}`, callback_data: `edit_${i}` },
+      ]);
+    });
+  }
   keyboard.push([
     { text: '✍️ Custom reply', callback_data: 'custom' },
     { text: '✅ Mark as Client', callback_data: 'mark_client' },
   ]);
-  keyboard.push([
-    { text: '🔁 Follow-up later', callback_data: 'followup' },
-    { text: '🔙 Back', callback_data: 'inbox' },
-  ]);
+  const lastRow = [{ text: '🔁 Follow-up later', callback_data: 'followup' }, { text: '🔙 Back', callback_data: 'inbox' }];
+  if (profile.username) {
+    keyboard.push([{ text: '🔗 Open Instagram', url: `https://instagram.com/${profile.username}` }]);
+  }
+  keyboard.push(lastRow);
 
   await editUIMessage(text, keyboard);
 }
@@ -652,8 +673,9 @@ app.post('/telegram', async (req, res) => {
         appendMessage(selectedSenderId, 'outgoing', pendingReply);
         setStatus(selectedSenderId, 'Replied');
         userState[telegramUserId].pendingReply = null;
+        userState[telegramUserId].suggestions = [];
         log('Message sent', { selectedSenderId, pendingReply });
-        await showDialog(telegramUserId, selectedSenderId);
+        await renderDialog(telegramUserId, selectedSenderId);
       } else {
         log('Send failed', result.error);
         await editUIMessage(
