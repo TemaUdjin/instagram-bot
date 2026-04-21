@@ -630,39 +630,53 @@ app.post('/webhook', async (req, res) => {
     if (!messaging) continue;
 
     for (const event of messaging) {
-      if (!event.message || event.message.is_echo) continue;
+      if (!event.message) continue;
 
-      const senderId = event.sender.id;
-      const recipientId = event.recipient.id;
+      const senderId = String(event.sender.id);
+      const recipientId = String(event.recipient.id);
       const text = event.message.text || '(no text)';
-      log('Incoming DM', { senderId, recipientId, text });
+      const isEcho = !!event.message.is_echo;
 
-      if (senderId === PAGE_ID || senderId === BUSINESS_ACCOUNT_ID) {
-        log('Ignored self message', { senderId, text });
+      // Detect self-messages: is_echo flag OR sender is our business account
+      const selfIds = [BUSINESS_ACCOUNT_ID, PAGE_ID].filter(Boolean).map(String);
+      const isSelf = isEcho || selfIds.includes(senderId);
+
+      log('Webhook event', { senderId, recipientId, isEcho, isSelf, text: text.slice(0, 60) });
+
+      if (isSelf) {
+        // Outgoing message echoed back — store under the CLIENT's thread (recipientId), not our own
+        if (selfIds.includes(recipientId)) {
+          log('Ignored self-to-self message', { senderId, recipientId });
+        } else {
+          log('Echo: storing outgoing in client thread', { clientId: recipientId, text: text.slice(0, 60) });
+          appendMessage(recipientId, 'outgoing', text);
+        }
         continue;
       }
 
-      appendMessage(senderId, 'incoming', text);
+      // clientId is always the person writing TO us
+      const clientId = senderId;
+      appendMessage(clientId, 'incoming', text);
 
-      const user = await getInstagramUser(senderId);
-      if (user) updateProfile(senderId, user.name, user.username);
+      const user = await getInstagramUser(clientId);
+      if (user) updateProfile(clientId, user.name, user.username);
 
-      const profile = getProfile(senderId);
-      const name = displayName(profile, senderId);
+      const profile = getProfile(clientId);
+      const name = displayName(profile, clientId);
 
       // Check if this sender's dialog is currently open
       const openDialogUsers = Object.entries(userState)
-        .filter(([, s]) => s.screen === 'dialog' && s.selectedSenderId === senderId)
+        .filter(([, s]) => s.screen === 'dialog' && s.selectedSenderId === clientId)
         .map(([tgId]) => tgId);
 
       if (openDialogUsers.length > 0) {
         // Refresh the open dialog so new message appears in history
         for (const tgId of openDialogUsers) {
-          await showDialog(tgId, senderId);
+          await showDialog(tgId, clientId);
         }
       } else {
         // Queue notification and overlay on current screen
-        addNotification(senderId, name, profile.username);
+        addNotification(clientId, name, profile.username);
         await refreshUIWithNotifications();
       }
     }
@@ -776,14 +790,31 @@ app.post('/telegram', async (req, res) => {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
+function cleanSelfConversations() {
+  const data = loadConversations();
+  const selfIds = [BUSINESS_ACCOUNT_ID, PAGE_ID].filter(Boolean).map(String);
+  let cleaned = 0;
+  for (const id of selfIds) {
+    if (data[id]) {
+      delete data[id];
+      cleaned++;
+    }
+  }
+  if (cleaned > 0) {
+    saveConversations(data);
+    log('Cleaned self-conversations', { removed: cleaned, selfIds });
+  }
+}
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   log('Server started', { port: PORT });
   log('Config', {
     BUSINESS_ACCOUNT_ID,
-    PAGE_ID,
+    PAGE_ID: PAGE_ID || '(not set)',
     token_type: PAGE_ACCESS_TOKEN?.startsWith('IGAA') ? 'IGAA ✅' : 'wrong type ❌',
     token_preview: PAGE_ACCESS_TOKEN?.slice(0, 15) + '...',
   });
+  cleanSelfConversations();
   await showInbox(CHAT_ID);
 });
