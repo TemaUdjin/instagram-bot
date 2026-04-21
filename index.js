@@ -24,6 +24,22 @@ const STYLE_FILE = path.join(__dirname, 'style_profile.json');
 // Style learning only happens from manually approved messages.
 const AUTO_SEND = false;
 
+// Resolved at startup — includes BUSINESS_ACCOUNT_ID + real IG account ID
+let resolvedSelfIds = [BUSINESS_ACCOUNT_ID, PAGE_ID].filter(Boolean).map(String);
+
+async function resolveSelfIds() {
+  try {
+    const res = await axios.get('https://graph.instagram.com/v19.0/me', {
+      params: { fields: 'id', access_token: PAGE_ACCESS_TOKEN }
+    });
+    const igId = String(res.data.id);
+    resolvedSelfIds = [...new Set([...resolvedSelfIds, igId])];
+    log('Self IDs resolved', { resolvedSelfIds });
+  } catch (err) {
+    log('Failed to resolve self IDs — using env values only', err.message);
+  }
+}
+
 // ─── Bot state ────────────────────────────────────────────────────────────────
 
 const botState = loadBotState();
@@ -164,7 +180,11 @@ function getRecentSenders(limit = 10) {
       profile: conv.profile || { name: '', username: '', status: 'New' },
       lastMessage: (conv.messages || []).slice(-1)[0] || null,
     }))
-    .filter(c => c.lastMessage && c.profile.status !== 'Ignored')
+    .filter(c => {
+      if (!c.lastMessage || c.profile.status === 'Ignored') return false;
+      const msgs = (loadConversations()[c.senderId]?.messages) || [];
+      return msgs.some(m => m.type === 'incoming');
+    })
     .sort((a, b) => new Date(b.lastMessage.time) - new Date(a.lastMessage.time))
     .slice(0, limit);
 }
@@ -755,19 +775,23 @@ app.post('/webhook', async (req, res) => {
       const text = event.message.text || '(no text)';
       const isEcho = !!event.message.is_echo;
 
-      // Detect self-messages: is_echo flag OR sender is our business account
-      const selfIds = [BUSINESS_ACCOUNT_ID, PAGE_ID].filter(Boolean).map(String);
-      const isSelf = isEcho || selfIds.includes(senderId);
+      // Detect self-messages: is_echo flag OR sender is one of our known account IDs
+      const isSelf = isEcho || resolvedSelfIds.includes(senderId);
 
-      log('Webhook event', { senderId, recipientId, isEcho, isSelf, text: text.slice(0, 60) });
+      log('Webhook event', { senderId, recipientId, isEcho, isSelf, selfIds: resolvedSelfIds, text: text.slice(0, 60) });
 
       if (isSelf) {
-        // Outgoing message echoed back — store under the CLIENT's thread (recipientId), not our own
-        if (selfIds.includes(recipientId)) {
-          log('Ignored self-to-self message', { senderId, recipientId });
-        } else {
-          log('Echo: storing outgoing in client thread', { clientId: recipientId, text: text.slice(0, 60) });
-          appendMessage(recipientId, 'outgoing', text);
+        // Only store echo in client thread if that client already exists (has incoming messages)
+        const isRecipientSelf = resolvedSelfIds.includes(recipientId);
+        if (!isRecipientSelf) {
+          const existing = loadConversations()[recipientId];
+          const hasIncoming = existing?.messages?.some(m => m.type === 'incoming');
+          if (hasIncoming) {
+            log('Echo: storing outgoing in existing client thread', { clientId: recipientId });
+            appendMessage(recipientId, 'outgoing', text);
+          } else {
+            log('Echo: skipping — no existing incoming thread for recipient', { recipientId });
+          }
         }
         continue;
       }
@@ -967,6 +991,7 @@ app.listen(PORT, async () => {
     token_type: PAGE_ACCESS_TOKEN?.startsWith('IGAA') ? 'IGAA ✅' : 'wrong type ❌',
     token_preview: PAGE_ACCESS_TOKEN?.slice(0, 15) + '...',
   });
+  await resolveSelfIds();
   cleanSelfConversations();
   await showInbox(CHAT_ID);
 });
