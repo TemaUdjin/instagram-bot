@@ -43,6 +43,43 @@ function saveBotState() {
 // In-memory store — primary source of truth; file is backup for cold start
 let conversationsCache = null;
 
+// Pending notification queue — new messages from users not currently open
+const pendingNotifications = []; // [{ senderId, name, username }]
+
+function addNotification(senderId, name, username) {
+  if (!pendingNotifications.find(n => n.senderId === senderId)) {
+    pendingNotifications.push({ senderId, name, username });
+    log('Notification queued', { senderId, name, total: pendingNotifications.length });
+  }
+}
+
+function removeNotification(senderId) {
+  const idx = pendingNotifications.findIndex(n => n.senderId === senderId);
+  if (idx !== -1) pendingNotifications.splice(idx, 1);
+}
+
+function applyNotifications(text, keyboard) {
+  if (pendingNotifications.length === 0) return { finalText: text, finalKeyboard: keyboard };
+
+  const notifRows = pendingNotifications.slice(0, 3).map(n => {
+    const label = (n.name || n.username || n.senderId).slice(0, 20);
+    const usernameStr = n.username ? ` (@${n.username})` : '';
+    return [
+      { text: `📨 ${label}${usernameStr}`, callback_data: `open_notif_${n.senderId}` },
+      { text: '✖️', callback_data: `ignore_notif_${n.senderId}` },
+    ];
+  });
+
+  const banner = pendingNotifications.length === 1
+    ? `🔔 New message from ${pendingNotifications[0].name || pendingNotifications[0].senderId}`
+    : `📥 ${pendingNotifications.length} new messages`;
+
+  return {
+    finalText: `${banner}\n\n${text}`,
+    finalKeyboard: [...notifRows, ...keyboard],
+  };
+}
+
 function loadConversations() {
   if (conversationsCache !== null) return conversationsCache;
   if (fs.existsSync(LOG_FILE)) {
@@ -283,11 +320,7 @@ async function getOrCreateUIMessage() {
   return botState.uiMessageId;
 }
 
-async function editUIMessage(text, inlineKeyboard = []) {
-  if (inlineKeyboard.length === 0) {
-    log('⚠️ editUIMessage called with no buttons', { textPreview: text.slice(0, 60) });
-  }
-  currentUIContent = { text, keyboard: inlineKeyboard };
+async function pushEdit(text, inlineKeyboard) {
   const msgId = await getOrCreateUIMessage();
   try {
     await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
@@ -303,10 +336,35 @@ async function editUIMessage(text, inlineKeyboard = []) {
       botState.uiMessageId = null;
       saveBotState();
       await getOrCreateUIMessage();
-      await editUIMessage(text, inlineKeyboard);
+      await pushEdit(text, inlineKeyboard);
     } else {
       console.error('[editUIMessage error]', desc);
     }
+  }
+}
+
+async function editUIMessage(text, inlineKeyboard = []) {
+  // Store raw content so notifications can be reapplied correctly
+  currentUIContent = { text, keyboard: inlineKeyboard };
+  const { finalText, finalKeyboard } = applyNotifications(text, inlineKeyboard);
+  await pushEdit(finalText, finalKeyboard);
+}
+
+// Called from webhook to overlay notification without changing current screen
+async function refreshUIWithNotifications() {
+  const { finalText, finalKeyboard } = applyNotifications(currentUIContent.text, currentUIContent.keyboard);
+  const msgId = await getOrCreateUIMessage();
+  if (!msgId) return;
+  try {
+    await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+      chat_id: CHAT_ID,
+      message_id: msgId,
+      text: finalText,
+      reply_markup: { inline_keyboard: finalKeyboard },
+    });
+  } catch (err) {
+    const desc = err.response?.data?.description || '';
+    if (!desc.includes('message is not modified')) console.error('[refreshUI error]', desc);
   }
 }
 
@@ -592,18 +650,20 @@ app.post('/webhook', async (req, res) => {
       const profile = getProfile(senderId);
       const name = displayName(profile, senderId);
 
-      // Overlay notification on current screen without interrupting it
-      const notif = `🔔 New message from ${name}`;
-      const msgId = await getOrCreateUIMessage();
-      if (msgId && currentUIContent.text) {
-        try {
-          await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
-            chat_id: CHAT_ID,
-            message_id: msgId,
-            text: `${notif}\n\n${currentUIContent.text}`,
-            reply_markup: { inline_keyboard: currentUIContent.keyboard },
-          });
-        } catch {}
+      // Check if this sender's dialog is currently open
+      const openDialogUsers = Object.entries(userState)
+        .filter(([, s]) => s.screen === 'dialog' && s.selectedSenderId === senderId)
+        .map(([tgId]) => tgId);
+
+      if (openDialogUsers.length > 0) {
+        // Refresh the open dialog so new message appears in history
+        for (const tgId of openDialogUsers) {
+          await showDialog(tgId, senderId);
+        }
+      } else {
+        // Queue notification and overlay on current screen
+        addNotification(senderId, name, profile.username);
+        await refreshUIWithNotifications();
       }
     }
   }
@@ -650,6 +710,19 @@ app.post('/telegram', async (req, res) => {
 
     } else if (data === 'custom') {
       await showCustomReply(telegramUserId);
+
+    } else if (data.startsWith('open_notif_')) {
+      const notifSenderId = data.slice('open_notif_'.length);
+      removeNotification(notifSenderId);
+      log('Notification opened', { notifSenderId });
+      await showDialog(telegramUserId, notifSenderId);
+
+    } else if (data.startsWith('ignore_notif_')) {
+      const notifSenderId = data.slice('ignore_notif_'.length);
+      removeNotification(notifSenderId);
+      log('Notification ignored', { notifSenderId });
+      // Re-render current screen — notifications updated, screen unchanged
+      await editUIMessage(currentUIContent.text, currentUIContent.keyboard);
 
     } else if (data === 'mark_client') {
       const { selectedSenderId } = userState[telegramUserId];
