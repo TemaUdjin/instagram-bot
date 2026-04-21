@@ -266,6 +266,9 @@ async function getOrCreateUIMessage() {
 }
 
 async function editUIMessage(text, inlineKeyboard = []) {
+  if (inlineKeyboard.length === 0) {
+    log('⚠️ editUIMessage called with no buttons', { textPreview: text.slice(0, 60) });
+  }
   currentUIContent = { text, keyboard: inlineKeyboard };
   const msgId = await getOrCreateUIMessage();
   try {
@@ -306,7 +309,7 @@ async function showInbox(telegramUserId) {
   let text = '📥 Inbox\n\n';
 
   if (senders.length === 0) {
-    text += 'No conversations yet.';
+    text += 'Inbox is empty.';
   } else {
     for (const s of senders) {
       const name = displayName(s.profile, s.senderId);
@@ -319,6 +322,8 @@ async function showInbox(telegramUserId) {
     text: `👤 ${displayName(s.profile, s.senderId)}`,
     callback_data: `dialog_${s.senderId}`,
   }]);
+
+  keyboard.push([{ text: '🔄 Refresh', callback_data: 'inbox' }]);
 
   await editUIMessage(text.trimEnd(), keyboard);
 }
