@@ -20,6 +20,10 @@ const LOG_FILE = path.join(__dirname, 'conversations.json');
 const STATE_FILE = path.join(__dirname, 'bot_state.json');
 const STYLE_FILE = path.join(__dirname, 'style_profile.json');
 
+// No message is ever sent without explicit user confirmation.
+// Style learning only happens from manually approved messages.
+const AUTO_SEND = false;
+
 // ─── Bot state ────────────────────────────────────────────────────────────────
 
 const botState = loadBotState();
@@ -561,6 +565,9 @@ async function showConfirm(telegramUserId, replyText) {
 
   state.pendingReply = replyText;
   state.screen = 'confirm';
+
+  // AUTO_SEND is false — confirmation is always required
+  if (AUTO_SEND) throw new Error('AUTO_SEND must remain false');
 
   const text = `Sending to: ${name}${usernameStr}\n\n"${replyText}"`;
   await editUIMessage(text, [[
