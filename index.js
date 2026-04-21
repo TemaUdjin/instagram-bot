@@ -303,41 +303,87 @@ FOLLOW UP if hesitating: "I am also putting together an online program, more aff
 
 RULES: Never dump info. If unsure what they need, ask. Respond in the same language the client writes in.`;
 
-async function generateSuggestions(lastMessage, clientName, history) {
+function analyzeStyle(examples) {
+  if (examples.length === 0) return null;
+  const wordCounts = examples.map(e => e.text.trim().split(/\s+/).length);
+  const avgWords = Math.round(wordCounts.reduce((a, b) => a + b, 0) / wordCounts.length);
+  const maxWords = Math.max(...wordCounts);
+  const questionRate = Math.round(examples.filter(e => e.text.includes('?')).length / examples.length * 100);
+  const shortRate = Math.round(examples.filter(e => e.text.split(/\s+/).length <= 12).length / examples.length * 100);
+  const lengthLabel = avgWords <= 8 ? 'VERY SHORT (under 10 words)' : avgWords <= 15 ? 'SHORT (10–15 words)' : avgWords <= 25 ? 'MEDIUM (15–25 words)' : 'LONGER';
+  return { avgWords, maxWords, questionRate, shortRate, lengthLabel };
+}
+
+function computeStyleMatch(suggestions, stats) {
+  if (!stats) return null;
+  const avgGenWords = suggestions.reduce((s, r) => s + r.split(/\s+/).length, 0) / suggestions.length;
+  const diff = Math.abs(avgGenWords - stats.avgWords) / Math.max(stats.avgWords, 1);
+  return Math.round(Math.max(0, 1 - diff) * 100);
+}
+
+function parseSuggestions(raw) {
+  return raw.split('\n')
+    .filter(l => /^\d\./.test(l.trim()))
+    .map(l => removeDashes(l.replace(/^\d\.\s*/, '').trim()))
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+async function generateSuggestions(lastMessage, clientName, history, attempt = 0) {
   const nameHint = clientName ? `Client name: ${clientName}. Use naturally once if it fits.` : '';
 
-  const styleExamples = loadStyleProfile().examples.slice(-15);
-  const examplesSection = styleExamples.length > 0
-    ? `\n\nREAL MESSAGES SENT BY THIS COACH — learn tone, length, and style from these (most recent = highest priority):\n${styleExamples.map(e => `"${e.text}"`).join('\n')}`
-    : '';
+  const allExamples = loadStyleProfile().examples;
+  const recent = allExamples.slice(-20);
+  const stats = analyzeStyle(recent);
+
+  log('STYLE SOURCE', { messages: recent.length, stats });
+
+  // Build style data block — this is the highest-priority input for Claude
+  let styleBlock = '';
+  if (recent.length >= 3 && stats) {
+    const samples = recent.slice(-10).map((e, i) => `${i + 1}. "${e.text}"`).join('\n');
+    styleBlock = `
+══════════════════════════════════════
+REAL USER MESSAGES — PRIMARY STYLE SOURCE (${recent.length} total, recent = highest priority):
+${samples}
+
+EXTRACTED STYLE RULES (enforce strictly):
+- Target length: ${stats.lengthLabel} — average ${stats.avgWords} words, max seen ${stats.maxWords}
+- Questions: used in ${stats.questionRate}% of messages${stats.questionRate > 50 ? ' — include a question' : ' — avoid forced questions'}
+- Short replies: ${stats.shortRate}% of messages are ≤12 words${stats.shortRate > 60 ? ' — keep it short' : ''}
+- DO NOT exceed ${Math.round(stats.avgWords * 1.4)} words per reply
+- Match vocabulary and phrasing from the examples above
+══════════════════════════════════════`;
+  } else {
+    styleBlock = `\n(No style data yet — use default coaching tone)`;
+  }
 
   const historyText = history.map(m =>
     `${m.type === 'incoming' ? 'Client' : 'Coach'}: ${m.text}`
   ).join('\n');
 
   const convContext = historyText
-    ? `Conversation so far:\n${historyText}`
+    ? `Conversation:\n${historyText}`
     : `Client message: "${lastMessage}"`;
 
   const system = `${SYSTEM_PROMPT}
 ${nameHint}
-${examplesSection}
+${styleBlock}
 
-CONVERSATION FLOW (follow naturally, do not rush):
-1. Connect — acknowledge their message, reflect their situation back briefly
-2. Understand — ask 1 simple focused question
-3. Guide — suggest a direction when you have enough context
-4. Offer (only when they feel warm or ready) — say something like: "I work 1:1 with people on this, adjusting everything to their level." Then stop.
-5. If they hesitate or go quiet — after some time, mention softly: "I'm also putting together a video program, more affordable and self-paced. I can add you to the waitlist if you want."
+CONVERSATION FLOW (natural progression, never rush):
+1. Connect — acknowledge, reflect their situation briefly
+2. Understand — ask 1 focused question
+3. Guide — direction when you have enough context
+4. Offer (only when warm/ready) — "I work 1:1 with people on this, adjusting to their level." Then stop.
+5. If hesitating — after time: "I'm also putting together a video program. Can add you to the waitlist if you want."
 
-DETECT AND RESPOND TO:
-- Intent: curious / warm / ready / cold
-- Stage: new / exploring / considering / decision
+Intent signals: curious / warm / ready / cold
+Stage signals: new / exploring / considering / decision
 
-VIDEO SUGGESTION: Only if natural and relevant — "You can send me a short video if you want, I'll take a look."
+VIDEO (only if natural): "You can send me a short video if you want, I'll take a look."
 
-Generate exactly 3 short reply options in the coach's real voice.
-Format strictly:
+Generate exactly 3 reply options. Each must match the style rules above.
+Format:
 1. [reply]
 2. [reply]
 3. [reply]`;
@@ -349,12 +395,19 @@ Format strictly:
     messages: [{ role: 'user', content: `${convContext}\n\nGenerate 3 reply options for the last client message.` }]
   });
 
-  const raw = message.content[0].text.trim();
-  return raw.split('\n')
-    .filter(l => /^\d\./.test(l.trim()))
-    .map(l => removeDashes(l.replace(/^\d\.\s*/, '').trim()))
-    .filter(Boolean)
-    .slice(0, 3);
+  const suggestions = parseSuggestions(message.content[0].text.trim());
+
+  const match = computeStyleMatch(suggestions, stats);
+  if (match !== null) {
+    log('STYLE MATCH', `${match}%`);
+    // Retry once if match is very low and we have enough style data
+    if (match < 50 && attempt === 0 && recent.length >= 5) {
+      log('Style match low — retrying', { match, attempt });
+      return generateSuggestions(lastMessage, clientName, history, 1);
+    }
+  }
+
+  return suggestions;
 }
 
 // ─── Telegram core ────────────────────────────────────────────────────────────
