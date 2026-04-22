@@ -1,104 +1,191 @@
-# Instagram Bot — Project Context
+# Instagram Bot — CLAUDE.md
 
-## What this is
+> **Правило обслуживания:** После каждого изменения кода обновить этот файл и memory.
+> После каждой новой фичи, фикса или решения — внести в соответствующий раздел.
 
-A Telegram-based mini-CRM for managing Instagram DMs.
-Webhook receives Instagram messages → bot shows them in a single Telegram UI message → coach replies with approval.
-Deployed on Railway. No frontend. One file: `index.js` (~1000 lines).
+---
 
-## Architecture
-
-```
-Instagram DM → /webhook (POST) → store in conversations.json
-                               → notify Telegram UI (single message, edited in-place)
-
-Telegram button click → /telegram (POST) → show dialog / confirm / send
-Telegram text message → /telegram (POST) → custom reply flow
-
-/health  — check token + Claude + Telegram status
-/debug-token — check IG token permissions
-```
-
-## Key files
-
-- `index.js` — entire app (Express, Telegram UI, IG API, Claude)
-- `conversations.json` — runtime data (in-memory + file backup), **not committed**
-- `style_profile.json` — approved sent messages as style training data, **not committed**
-- `bot_state.json` — Telegram UI message ID, **not committed**
-- `.env` — secrets, **never commit**
-- `.env.example` — template for env vars
-
-## Deploy workflow
+## Быстрый старт
 
 ```bash
-node --check index.js   # always check syntax first
-git add index.js
-git commit -m "..."
-git push origin main    # Railway auto-deploys on push
+node --check index.js          # всегда первым делом
+git add index.js && git commit -m "..." && git push origin main
+curl -s https://web-production-6ed0b.up.railway.app/health | python3 -m json.tool
 ```
 
-Health check after deploy: `curl https://web-production-6ed0b.up.railway.app/health`
+---
 
-## Environment variables
+## Что это
 
-| Var | Purpose |
-|-----|---------|
-| `PAGE_ACCESS_TOKEN` | Instagram long-lived token (starts with IGAA) |
-| `BUSINESS_ACCOUNT_ID` | Instagram business page ID |
-| `PAGE_ID` | Not set — bot dynamically fetches real IG account ID at startup |
-| `TELEGRAM_TOKEN` | Bot token |
-| `CHAT_ID` | Owner's Telegram user ID (784663861) |
-| `VERIFY_TOKEN` | Webhook verification secret |
-| `ANTHROPIC_API_KEY` | Claude API key |
+Telegram mini-CRM для Instagram DM. Тренер получает сообщения от клиентов в Instagram — бот показывает их в одном Telegram-сообщении (редактируется на месте, не спамит), Claude генерирует 3 варианта ответа, тренер выбирает/редактирует/подтверждает, бот отправляет.
 
-## Critical rules (learned from production)
+**Stack:** Node.js + Express + Anthropic SDK + Telegram Bot API + Instagram Graph API → Railway
 
-- `AUTO_SEND = false` — every reply requires manual confirmation. Never change this.
-- `resolvedSelfIds` — fetched at startup from IG API. PAGE_ID alone is not reliable.
-- All data is in-memory (`conversationsCache`). Railway filesystem is ephemeral.
-- Telegram UI = ONE message (edited in-place). Never spam new messages for UI updates.
-- Self-messages detected by: `is_echo === true` OR `senderId ∈ resolvedSelfIds`.
-- Inbox only shows threads with at least one `type: 'incoming'` message.
-- Style learning: `saveStyleExample()` only called after `confirm_send` success.
+---
 
-## Telegram UI screens
+## Карта функций `index.js`
 
-- **Inbox** — list of recent conversations, `[ 🔄 Refresh ]` always at bottom
-- **Dialog** — history (5 msgs) + 3 AI suggestions + action buttons
-- **Confirm** — "Sending to: Name" + `[ ✅ Confirm Send ]` `[ ❌ Cancel ]`
-- **Custom reply** — user types text, goes to Confirm
-- **View Sent** — last 20 outgoing for that user
+### Инфраструктура
+| Строка | Функция | Что делает |
+|--------|---------|-----------|
+| 32 | `isDuplicateSend` | блок дублей (10 сек окно) |
+| 40 | `resolveSelfIds` | получает реальный IG ID при старте |
+| 63 | `loadBotState` | читает ID Telegram UI-сообщения |
+| 70 | `saveBotState` | сохраняет ID |
 
-## Callback data format
+### Данные (conversations.json)
+| Строка | Функция | Что делает |
+|--------|---------|-----------|
+| 114 | `loadConversations` | in-memory кэш → файл при cold start |
+| 138 | `saveConversations` | кэш + файл |
+| 147 | `appendMessage` | добавляет сообщение в тред |
+| 159 | `updateProfile` | имя/username пользователя |
+| 167 | `setStatus` | New / Replied / Client / Ignored |
+| 174 | `getHistory` | последние N сообщений |
+| 185 | `getRecentSenders` | список для Inbox (только с incoming) |
+
+### Уведомления
+| Строка | Функция | Что делает |
+|--------|---------|-----------|
+| 80 | `addNotification` | очередь уведомлений |
+| 87 | `removeNotification` | убирает уведомление |
+| 92 | `applyNotifications` | оверлей поверх текущего экрана |
+
+### Instagram API
+| Строка | Функция | Что делает |
+|--------|---------|-----------|
+| 228 | `getInstagramUser` | имя и username по ID |
+| 240 | `sendInstagramMessage` | отправка DM |
+
+### Claude / Style
+| Строка | Функция | Что делает |
+|--------|---------|-----------|
+| 284 | `loadStyleProfile` | кэш style_profile.json |
+| 296 | `saveStyleExample` | сохраняет одобренное сообщение |
+| 336 | `analyzeStyle` | avg слов, % вопросов, % коротких |
+| 347 | `computeStyleMatch` | % соответствия стилю |
+| 362 | `generateSuggestions` | 3 варианта с style-данными, retry < 50% |
+
+### Telegram UI
+| Строка | Функция | Что делает |
+|--------|---------|-----------|
+| 445 | `sendRawMessage` | создаёт новое сообщение (только при init) |
+| 457 | `getOrCreateUIMessage` | ID единственного UI-сообщения |
+| 467 | `pushEdit` | raw editMessageText |
+| 490 | `editUIMessage` | edit + apply notifications + store content |
+| 498 | `refreshUIWithNotifications` | обновить UI без смены экрана |
+
+### Экраны
+| Строка | Функция | Экран |
+|--------|---------|-------|
+| 525 | `showInbox` | 📥 список бесед |
+| 551 | `showDialog` | 👤 диалог + генерация suggestions |
+| 593 | `renderDialog` | 👤 диалог без генерации (быстро) |
+| 646 | `showConfirm` | подтверждение перед отправкой |
+| 665 | `showSentMessages` | 📜 последние 20 исходящих |
+| 681 | `showCustomReply` | ✍️ ввод своего текста |
+
+### Роуты
+| Строка | Роут | Назначение |
+|--------|------|-----------|
+| 695 | `GET /health` | статус всех сервисов |
+| 731 | `GET /debug-token` | IG токен и permissions |
+| 748 | `GET /test-claude` | тест генерации suggestions |
+| 757 | `GET /test-telegram` | тест Telegram |
+| 775 | `GET /webhook` | верификация Meta |
+| 788 | `POST /webhook` | входящие IG события |
+| 881 | `POST /telegram` | кнопки и сообщения от тренера |
+
+---
+
+## Критические правила
 
 ```
-inbox               → show inbox
-dialog_<senderId>   → open dialog for user
-send_<0|1|2>        → go to confirm with suggestion N
-edit_<0|1|2>        → edit suggestion N (custom reply with prefill)
-custom              → custom reply
-mark_client         → set status = Client
-followup            → re-render dialog (no status change)
-ignore_conv         → set status = Ignored
-view_sent_<id>      → show sent messages
-open_notif_<id>     → open dialog from notification
-ignore_notif_<id>   → dismiss notification
-confirm_send        → actually send to Instagram
+AUTO_SEND = false          → всегда, без исключений
+resolvedSelfIds            → используй, не PAGE_ID (он не задан в .env)
+conversationsCache         → источник истины, не файл
+editUIMessage()            → единственный способ обновить UI
+confirm_send → renderDialog (не showDialog — он запускает Claude)
 ```
 
-## Conversation status flow
+### Что НЕЛЬЗЯ делать
+- Отправлять сообщения без `confirm_send`
+- Создавать новые Telegram-сообщения для UI (только edit)
+- Читать файл на каждый запрос (только кэш)
+- Создавать беседы только с исходящими сообщениями
+- Генерировать suggestions когда `lastMessage.type === 'outgoing'`
 
+---
+
+## Структура данных
+
+### conversations.json
+```json
+{
+  "sender_id": {
+    "profile": { "name": "...", "username": "...", "status": "New" },
+    "messages": [
+      { "type": "incoming", "text": "...", "time": "ISO" },
+      { "type": "outgoing", "text": "...", "time": "ISO" }
+    ]
+  }
+}
 ```
-New → (reply sent) → Replied
-New/Replied → (mark_client) → Client
-Any → (ignore) → Ignored
-Ignored → (new message from user) → New (auto-restored)
+
+### style_profile.json
+```json
+{ "examples": [{ "text": "...", "time": "ISO" }] }
+```
+Хранит последние 50 одобренных сообщений. Используется в `generateSuggestions`.
+
+---
+
+## Callback data
+```
+inbox | dialog_<id> | send_<0-2> | edit_<0-2> | custom
+mark_client | followup | ignore_conv | view_sent_<id>
+open_notif_<id> | ignore_notif_<id> | confirm_send
 ```
 
-## What NOT to do
+---
 
-- Don't add features without asking — this is a focused tool
-- Don't create new Telegram messages for UI — always edit the single UI message
-- Don't store data without `conversationsCache` — don't read file on every request
-- Don't send without `confirm_send` flow — AUTO_SEND must stay false
-- Don't add PAGE_ID to env yet — dynamic resolution works fine
+## Статусы бесед
+```
+New → Replied (авто после confirm_send)
+Any → Client (кнопка Mark as Client)
+Any → Ignored (кнопка Ignore)
+Ignored → New (авто когда пишет снова)
+```
+
+---
+
+## Env-переменные
+| Переменная | Значение / назначение |
+|-----------|----------------------|
+| `PAGE_ACCESS_TOKEN` | IGAA... (long-lived Instagram token) |
+| `BUSINESS_ACCOUNT_ID` | `17841400228014487` |
+| `PAGE_ID` | не задан — ID `34828458240135295` подтягивается через API |
+| `TELEGRAM_TOKEN` | токен бота |
+| `CHAT_ID` | `784663861` (Yujin) |
+| `VERIFY_TOKEN` | `my_secret_token_123` |
+| `ANTHROPIC_API_KEY` | sk-ant-... |
+| `RAILWAY_URL` | `https://web-production-6ed0b.up.railway.app` |
+
+---
+
+## Протокол обновления этого файла
+
+**После добавления новой функции:**
+→ добавить строку в таблицу "Карта функций"
+
+**После добавления нового callback:**
+→ добавить в раздел "Callback data"
+
+**После изменения критического правила:**
+→ обновить раздел "Критические правила"
+
+**После изменения структуры данных:**
+→ обновить раздел "Структура данных"
+
+**После любого важного решения:**
+→ обновить `memory/feedback_patterns.md`
