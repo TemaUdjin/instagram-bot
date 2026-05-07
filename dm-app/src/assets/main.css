@@ -1,0 +1,83 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f3f3f3;
+  --foreground: #1e1e1e;
+  --muted: #e8e8e8;
+  --muted-foreground: #717171;
+  --border: #d4d4d4;
+  --accent: #a07840;
+  --accent-hover: #8a6530;
+  --card: #ffffff;
+  --card-foreground: #1e1e1e;
+  --status-new: #a07840;
+  --status-replied: #717171;
+  --status-client: #2d8a5e;
+  --status-ignored: #999999;
+  --activity-bg: #2c2c2c;
+  --tabbar-bg: #ececec;
+}
+
+.dark {
+  --background: #1e1e1e;
+  --foreground: #d4d4d4;
+  --muted: #252526;
+  --muted-foreground: #858585;
+  --border: #3e3e42;
+  --accent: #c8a96e;
+  --accent-hover: #d4b87a;
+  --card: #252526;
+  --card-foreground: #d4d4d4;
+  --status-new: #c8a96e;
+  --status-replied: #858585;
+  --status-client: #4ec994;
+  --status-ignored: #4e4e52;
+  --activity-bg: #181818;
+  --tabbar-bg: #181818;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Geist Variable', system-ui, sans-serif;
+  margin: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Titlebar drag region */
+.titlebar {
+  -webkit-app-region: drag;
+}
+
+.titlebar button,
+.titlebar input,
+.titlebar a {
+  -webkit-app-region: no-drag;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}

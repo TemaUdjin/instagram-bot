@@ -1,7 +1,18 @@
-# Instagram Bot — CLAUDE.md
+# instagram-bot — техническая карта подсистемы
+
+Это **подпроект DM-менеджера** в системе Toward to Perfection.
+
+> **Текущее направление:** Переход от Telegram-интерфейса к нативному Mac десктоп-приложению (Electron + React).
+> План: `plans/2026-05-04-desktop-app.md`. Разработка начинается 2026-05-05.
+
+> **Бизнес-контекст и общая карта системы — в родительской папке:**
+> `../CLAUDE.md` (карта системы) и `../.business/INDEX.md` (бизнес-контекст).
+> Здесь — только техника бота.
 
 > **Правило обслуживания:** После каждого изменения кода обновить этот файл и memory.
 > После каждой новой фичи, фикса или решения — внести в соответствующий раздел.
+
+> **Где какой план:** фича только бота → `plans/`. Кросс-системная (бот ↔ сайт) → `../plans/`.
 
 ---
 
@@ -17,9 +28,13 @@ curl -s https://web-production-6ed0b.up.railway.app/health | python3 -m json.too
 
 ## Что это
 
-Telegram mini-CRM для Instagram DM. Тренер получает сообщения от клиентов в Instagram — бот показывает их в одном Telegram-сообщении (редактируется на месте, не спамит), Claude генерирует 3 варианта ответа, тренер выбирает/редактирует/подтверждает, бот отправляет.
+DM-менеджер для Instagram. Тренер получает сообщения от клиентов в Instagram — Claude генерирует 3 варианта ответа в стиле тренера, тренер выбирает/редактирует/подтверждает, бот отправляет.
 
-**Stack:** Node.js + Express + Anthropic SDK + Telegram Bot API + Instagram Graph API → Railway
+**Интерфейс:** Переходим на нативное Mac-приложение (Electron). Telegram-версия — прототип, заменяется.
+
+**Stack текущий:** Node.js + Express + Anthropic SDK + Telegram Bot API + Instagram Graph API → Railway
+
+**Stack целевой:** Electron + React + Tailwind + Anthropic SDK + OpenAI SDK + Instagram Graph API → локально на Mac
 
 ---
 
@@ -167,7 +182,7 @@ Ignored → New (авто когда пишет снова)
 | `PAGE_ID` | не задан — ID `34828458240135295` подтягивается через API |
 | `TELEGRAM_TOKEN` | токен бота |
 | `CHAT_ID` | `784663861` (Yujin) |
-| `VERIFY_TOKEN` | `my_secret_token_123` |
+| `VERIFY_TOKEN` | случайная строка (в .env, не в коде) |
 | `ANTHROPIC_API_KEY` | sk-ant-... |
 | `RAILWAY_URL` | `https://web-production-6ed0b.up.railway.app` |
 
