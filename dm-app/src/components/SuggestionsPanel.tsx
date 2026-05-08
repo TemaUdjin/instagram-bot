@@ -60,6 +60,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [savingIdx, setSavingIdx] = useState<number | null>(null)
   const [matchHint, setMatchHint] = useState<Template | null>(null)
+  const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const usedPct = Math.round((MOCK_USED / CONTEXT_LIMIT) * 100)
@@ -68,6 +69,14 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Clear panel when switching to a different conversation
+  useEffect(() => {
+    setSelected(null)
+    setMessages([])
+    setMatchHint(null)
+    setSending(false)
+  }, [conversationId])
 
   // React to "Ask Claude" button — call real API
   useEffect(() => {
@@ -401,15 +410,21 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
       {tab === 'claude' && selected && (
         <div className="px-3 pb-2">
           <button
+            disabled={sending}
             className="w-full py-2 rounded-lg text-xs font-medium"
-            style={{ background: 'var(--accent)', color: '#1a1610', cursor: 'pointer' }}
+            style={{
+              background: sending ? 'var(--muted)' : 'var(--accent)',
+              color: sending ? 'var(--muted-foreground)' : '#1a1610',
+              cursor: sending ? 'default' : 'pointer',
+              opacity: sending ? 0.6 : 1
+            }}
             onClick={async () => {
-              if (!trigger?.conversationId || !selected) return
+              if (!conversationId || !selected || sending) return
               const msgText = selected
-              const convId = trigger.conversationId
+              setSending(true)
               setSelected(null)
               onSelect(msgText)
-              fetch(`http://localhost:3001/api/conversations/${convId}/send`, {
+              fetch(`http://localhost:3001/api/conversations/${conversationId}/send`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: msgText })
@@ -426,9 +441,10 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
               .catch(e => {
                 setMessages(prev => [...prev, { role: 'claude', type: 'text', content: `❌ ${e.message}` }])
               })
+              .finally(() => setSending(false))
             }}
           >
-            ✦ Подтвердить и отправить в Instagram
+            {sending ? '⏳ Отправка...' : '✦ Подтвердить и отправить в Instagram'}
           </button>
         </div>
       )}

@@ -207,10 +207,23 @@ app.get('/api/conversations/:id/messages', (req, res) => {
   res.json({ profile: conv.profile, messages: conv.messages || [] })
 })
 
+// Dedup map: `${senderId}:${text}` → timestamp of last send
+const recentSends = new Map()
+const DEDUP_WINDOW_MS = 10000
+
 // POST /api/conversations/:id/send
 app.post('/api/conversations/:id/send', async (req, res) => {
   const { text } = req.body
   const senderId = req.params.id
+
+  const dedupKey = `${senderId}:${text}`
+  const lastSent = recentSends.get(dedupKey)
+  if (lastSent && Date.now() - lastSent < DEDUP_WINDOW_MS) {
+    console.warn(`⚠️ Duplicate send blocked (${Date.now() - lastSent}ms ago): "${text.slice(0, 40)}"`)
+    return res.json({ ok: true, duplicate: true })
+  }
+  recentSends.set(dedupKey, Date.now())
+
   try {
     console.log(`📤 Sending to ${senderId}: "${text.slice(0, 50)}"`)
     const result = await sendMessage(senderId, text)
