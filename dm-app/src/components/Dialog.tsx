@@ -1,6 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { SendIcon } from './Icons'
 import { api, ConversationDetail } from '../api'
+
+function ClientIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+    </svg>
+  )
+}
 
 function BellIcon() {
   return (
@@ -39,6 +47,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
   const [note, setNote] = useState('')
   const [showNote, setShowNote] = useState(false)
   const [followupSet, setFollowupSet] = useState(false)
+  const [isClient, setIsClient] = useState(false)
   const [detail, setDetail] = useState<ConversationDetail | null>(null)
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -46,13 +55,15 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    if (!conversationId) { setDetail(null); return }
+    if (!conversationId) { setDetail(null); setIsClient(false); return }
     setDetail(null) // clear stale data before loading new conversation
+    setIsClient(false)
 
     const load = (initial = false) => {
       if (initial) setLoading(true)
       api.messages(conversationId)
         .then(d => {
+          if (initial) setIsClient(d?.profile?.status === 'client')
           setDetail(prev => {
             // Keep optimistic messages that don't have a real counterpart yet
             const realTexts = new Set((d?.messages || []).map((m: any) => m.text))
@@ -163,6 +174,25 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
           </div>
           {/* Actions */}
           <div className="flex items-center gap-1">
+            {/* Mark as Client */}
+            <button
+              onClick={async () => {
+                const next = isClient ? 'replied' : 'client'
+                setIsClient(!isClient)
+                await api.setStatus(conversationId!, next)
+                onSent?.()
+              }}
+              title={isClient ? 'Убрать из клиентов' : 'Отметить как клиент'}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all"
+              style={{
+                color: isClient ? 'var(--status-client)' : 'var(--muted-foreground)',
+                background: isClient ? 'rgba(78,201,148,0.12)' : 'transparent',
+                border: isClient ? '1px solid rgba(78,201,148,0.3)' : '1px solid transparent',
+                cursor: 'pointer'
+              }}
+            >
+              ⭐ {isClient ? 'Клиент' : 'В клиенты'}
+            </button>
             <button
               onClick={() => setShowNote(n => !n)}
               title="Заметка о клиенте"

@@ -45,11 +45,19 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'new' | 'replied' | 'client'>('all')
   const [hidden, setHidden] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')))
+  const [showHidden, setShowHidden] = useState(false)
   const [hoverId, setHoverId] = useState<string | null>(null)
 
   const hideConv = (id: string) => {
     const next = new Set(hidden)
     next.add(id)
+    setHidden(next)
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...next]))
+  }
+
+  const restoreConv = (id: string) => {
+    const next = new Set(hidden)
+    next.delete(id)
     setHidden(next)
     localStorage.setItem(HIDDEN_KEY, JSON.stringify([...next]))
   }
@@ -216,14 +224,47 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
         ))}
       </div>
 
+      {/* Hidden conversations panel */}
+      {showHidden && hidden.size > 0 && (
+        <div className="border-t" style={{ borderColor: 'var(--border)', background: 'var(--muted)' }}>
+          <div className="px-3 py-1.5 text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Скрытые</div>
+          {all.filter(c => hidden.has(c.id)).map(conv => (
+            <div key={conv.id} className="flex items-center gap-2 px-3 py-1.5">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: 'var(--border)', color: 'var(--muted-foreground)' }}>
+                {conv.name[0]}
+              </div>
+              <span className="flex-1 text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>{conv.name}</span>
+              <button
+                onClick={() => restoreConv(conv.id)}
+                className="text-xs px-2 py-0.5 rounded-md"
+                style={{ background: 'var(--background)', color: 'var(--accent)', cursor: 'pointer', border: '1px solid var(--border)' }}
+              >
+                Вернуть
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Footer */}
       <div className="px-4 py-2 border-t flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
         <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
           {active.length} активных · {all.length} всего
         </span>
-        <span className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
-          {loading ? '↻ обновление...' : '● live'}
-        </span>
+        <div className="flex items-center gap-2">
+          {hidden.size > 0 && (
+            <button
+              onClick={() => setShowHidden(s => !s)}
+              className="text-xs"
+              style={{ color: 'var(--muted-foreground)', opacity: 0.6, cursor: 'pointer', background: 'none', border: 'none' }}
+            >
+              {showHidden ? 'Скрыть' : `скрытые (${hidden.size})`}
+            </button>
+          )}
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
+            {loading ? '↻' : '● live'}
+          </span>
+        </div>
       </div>
     </div>
   )
