@@ -252,11 +252,19 @@ app.post('/api/conversations/:id/send', async (req, res) => {
 // PATCH /api/conversations/:id/status
 app.patch('/api/conversations/:id/status', (req, res) => {
   const { status, note } = req.body
-  if (conversationsCache[req.params.id]) {
-    if (status) conversationsCache[req.params.id].profile.status = status
-    if (note !== undefined) conversationsCache[req.params.id].profile.note = note
-    saveConversations()
+  const id = req.params.id
+  // Update all caches
+  for (const fc of Object.values(folderCache)) {
+    if (fc[id]) {
+      if (status) fc[id].profile.status = status
+      if (note !== undefined) fc[id].profile.note = note
+    }
   }
+  if (conversationsCache[id]) {
+    if (status) conversationsCache[id].profile.status = status
+    if (note !== undefined) conversationsCache[id].profile.note = note
+  }
+  saveConversations()
   res.json({ ok: true })
 })
 
