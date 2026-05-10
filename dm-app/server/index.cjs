@@ -95,9 +95,9 @@ async function fetchConversations(folder = 'primary') {
           name: sender.username || sender.name || senderId,
           username: sender.username || '',
           avatar: sender.profile_picture_url || null,
-          status: existing?.profile?.status || 'new',
+          status: existing?.profile?.status || conversationsCache[senderId]?.profile?.status || 'new',
           folder,
-          note: existing?.profile?.note || ''
+          note: existing?.profile?.note || conversationsCache[senderId]?.profile?.note || ''
         },
         messages: existing?.messages || []
       }
@@ -253,17 +253,19 @@ app.post('/api/conversations/:id/send', async (req, res) => {
 app.patch('/api/conversations/:id/status', (req, res) => {
   const { status, note } = req.body
   const id = req.params.id
-  // Update all caches
+  // Update folderCache (in-memory, current session)
   for (const fc of Object.values(folderCache)) {
     if (fc[id]) {
       if (status) fc[id].profile.status = status
       if (note !== undefined) fc[id].profile.note = note
     }
   }
-  if (conversationsCache[id]) {
-    if (status) conversationsCache[id].profile.status = status
-    if (note !== undefined) conversationsCache[id].profile.note = note
+  // Always persist to conversationsCache (saved to disk)
+  if (!conversationsCache[id]) {
+    conversationsCache[id] = { profile: { status: 'new' }, messages: [] }
   }
+  if (status) conversationsCache[id].profile.status = status
+  if (note !== undefined) conversationsCache[id].profile.note = note
   saveConversations()
   res.json({ ok: true })
 })
