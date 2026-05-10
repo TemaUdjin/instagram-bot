@@ -10,29 +10,111 @@ export interface Template {
 }
 
 const TEMPLATES_KEY = 'tp_templates'
+const TEMPLATES_VERSION_KEY = 'tp_templates_version'
+const TEMPLATES_VERSION = '2'
 
 const SEED_TEMPLATES: Template[] = [
   {
-    id: 'seed_1',
-    question: 'Сколько стоит? Какая цена?',
-    answer: 'Смотри, у нас два уровня — базовый и продвинутый. Базовый подойдёт если только начинаешь или хочешь систему. Напиши что тебя больше интересует и скину точные детали.',
-    tags: ['цена'],
+    id: 'seed_handstand_1',
+    question: 'Someone writes "handstand"',
+    answer: 'Hey 👋\n\nWhat\'s pulling you more right now:\nhandstand itself,\nor more general mobility and movement too?',
+    tags: ['handstand'],
     usedCount: 0,
     createdAt: new Date().toISOString(),
   },
   {
-    id: 'seed_2',
-    question: 'С чего начать? Я новичок',
-    answer: 'Лучшая точка входа — базовый уровень. Там с нуля: мобильность, основы хэндстенда, контроль тела. Всё в своём темпе, никаких "надо быть гибким с детства". Расскажи немного о себе — что уже есть из опыта?',
-    tags: ['начало'],
+    id: 'seed_handstand_2',
+    question: 'Handstand — check level',
+    answer: 'Hey 👋\n\nWhat\'s your current level with handstands?\nTotal beginner or already kicking up against a wall?',
+    tags: ['handstand'],
     usedCount: 0,
     createdAt: new Date().toISOString(),
   },
   {
-    id: 'seed_3',
-    question: 'Травма / боль / ограничение',
-    answer: 'Это важно учесть. Расскажи подробнее — что именно, давно ли, что триггерит? В большинстве случаев мы работаем вокруг ограничений, а не через них.',
-    tags: ['травмы'],
+    id: 'seed_mobility',
+    question: 'Interested in mobility / flexibility',
+    answer: 'Hey 👋\n\nAre you mostly interested in flexibility,\ngeneral mobility,\nor more handstand focused mobility like shoulders, hips and spine?',
+    tags: ['mobility'],
+    usedCount: 0,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'seed_start',
+    question: 'Where to start? Beginner',
+    answer: 'Nice, that\'s actually a really good place to start 👍\n\nA lot of people think handstands are only about balance or strength,\nbut usually it\'s more about learning how to use your body properly.\n\nShoulders, core, hips, alignment, body awareness.\n\nThat\'s the real foundation.\n\nDo you already train something right now?\nGym, yoga, calisthenics, sports?',
+    tags: ['start'],
+    usedCount: 0,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'seed_injuries',
+    question: 'Injury / pain / limitation',
+    answer: 'Got you 👍\n\nInjuries or pain usually don\'t mean we have to stop completely.\nMost of the time we can work around them and still improve a lot.\n\nMobility, core, hip work, alignment, breathing, posture, movement quality.\n\nAll of that still matters for handstand progress.\n\nWhat exactly is bothering you right now?',
+    tags: ['injuries'],
+    usedCount: 0,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'seed_program',
+    question: 'How does the program / training work?',
+    answer: 'Right now I mainly work in a 1:1 online format.\n\nWe train together once a week through WhatsApp or another platform that works for you.\n\nI guide you through the full process:\nwarm up, mobility, strength, handstand work, corrections, recovery.\n\nAnd between sessions you\'ll also have your own training program to follow.\n\nI adapt everything to your level and your body.',
+    tags: ['program', 'online'],
+    usedCount: 0,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'seed_online',
+    question: 'Is it online? How does online coaching work?',
+    answer: 'Most of my coaching is online 👍\n\nUsually we do 1 live session per week.\n\nAnd outside the session:\nyou practice with your structured homework and send me videos for corrections.\n\nThat way progress continues between sessions too.',
+    tags: ['online'],
+    usedCount: 0,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'seed_price',
+    question: 'How much? Price / cost?',
+    answer: 'One session is 70€.\n\nSessions usually last around 60 to 100 minutes depending on the training.\n\nPayment is through Wise or crypto.\n\nI keep a limited amount of students because I prefer working seriously and long term with people.',
+    tags: ['price'],
+    usedCount: 0,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'seed_schedule',
+    question: 'Ready to start — schedule / availability',
+    answer: 'If it feels aligned for you,\nsend me your:\n• time zone\n• usual schedule\n• preferred training times\n\nand I\'ll see what slots I currently have available 👍',
+    tags: ['schedule'],
+    usedCount: 0,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'seed_course',
+    question: 'Too expensive / looking for cheaper option',
+    answer: 'If 1:1 coaching feels too expensive right now,\nno worries 👍\n\nI\'m currently working on an online program/course\nthat people will be able to follow on their own at a much more accessible price.\n\nIt\'s not fully finished yet,\nbut I can add you to the waiting list and let you know once it\'s ready.',
+    tags: ['course', 'price'],
+    usedCount: 0,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'seed_advanced',
+    question: 'Person already trains / has background',
+    answer: 'That\'s actually great because your body already has a foundation.\n\nUsually people who already trained in other disciplines progress much faster because their body already understands strength and adaptation.\n\nThen it becomes more about:\ncontrol, mobility, alignment, awareness and consistency.\n\nThose are the things that really unlock advanced handstand work.',
+    tags: ['handstand', 'start'],
+    usedCount: 0,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'seed_followup',
+    question: 'Follow-up / checking in',
+    answer: 'Hey 👋\nJust checking in.\n\nAre you still interested in starting your training?',
+    tags: ['followup'],
+    usedCount: 0,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'seed_whatsapp',
+    question: 'Move to WhatsApp',
+    answer: 'It\'s usually easier to continue on WhatsApp 👍\n\nYou can message me there and we\'ll organize everything:\n\n+84 35 426 3095',
+    tags: ['schedule', 'online'],
     usedCount: 0,
     createdAt: new Date().toISOString(),
   },
@@ -40,10 +122,17 @@ const SEED_TEMPLATES: Template[] = [
 
 export function loadTemplates(): Template[] {
   try {
+    const storedVersion = localStorage.getItem(TEMPLATES_VERSION_KEY)
     const raw = localStorage.getItem(TEMPLATES_KEY)
-    if (!raw) {
-      localStorage.setItem(TEMPLATES_KEY, JSON.stringify(SEED_TEMPLATES))
-      return SEED_TEMPLATES
+
+    if (!raw || storedVersion !== TEMPLATES_VERSION) {
+      // Keep any user-created templates (non-seed ids), merge with new seeds
+      const existing: Template[] = raw ? JSON.parse(raw) : []
+      const userTemplates = existing.filter(t => !t.id.startsWith('seed_'))
+      const merged = [...SEED_TEMPLATES, ...userTemplates]
+      localStorage.setItem(TEMPLATES_KEY, JSON.stringify(merged))
+      localStorage.setItem(TEMPLATES_VERSION_KEY, TEMPLATES_VERSION)
+      return merged
     }
     return JSON.parse(raw)
   } catch { return SEED_TEMPLATES }
@@ -53,7 +142,7 @@ function saveTemplates(templates: Template[]) {
   localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates))
 }
 
-const ALL_TAGS = ['цена', 'начало', 'хэндстенд', 'мобильность', 'травмы', 'курс', 'время', 'программа']
+const ALL_TAGS = ['price', 'start', 'handstand', 'mobility', 'injuries', 'course', 'schedule', 'program', 'online', 'trial']
 
 function CopyIcon() {
   return (
