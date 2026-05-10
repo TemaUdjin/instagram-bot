@@ -47,6 +47,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
 
   useEffect(() => {
     if (!conversationId) { setDetail(null); return }
+    setDetail(null) // clear stale data before loading new conversation
 
     const load = (initial = false) => {
       if (initial) setLoading(true)
