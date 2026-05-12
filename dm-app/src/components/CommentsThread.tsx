@@ -25,6 +25,17 @@ function SendIcon() {
   )
 }
 
+function TrashIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+    </svg>
+  )
+}
+
+const OWN_USERNAME = 'temayujin'
+
 function SparkleIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none">
@@ -45,13 +56,15 @@ function formatTime(iso: string) {
 }
 
 function Avatar({ username }: { username: string }) {
-  const letter = (username[0] || '?').toUpperCase()
+  const letter = username ? username[0].toUpperCase() : '?'
   const colors = ['#c8a96e', '#7eb8c8', '#c87e9a', '#7ec8a0', '#c8a07e', '#a07ec8']
-  const color = colors[letter.charCodeAt(0) % colors.length]
+  const color = username
+    ? colors[letter.charCodeAt(0) % colors.length]
+    : 'var(--muted)'
   return (
     <div
       className="rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-      style={{ width: 32, height: 32, background: color, color: '#1a1610' }}
+      style={{ width: 32, height: 32, background: color, color: username ? '#1a1610' : 'var(--muted-foreground)' }}
     >
       {letter}
     </div>
@@ -63,9 +76,10 @@ interface CommentRowProps {
   mediaId: string
   postCaption: string
   isReply?: boolean
+  onDeleted?: (id: string) => void
 }
 
-function CommentRow({ comment, mediaId, postCaption, isReply }: CommentRowProps) {
+function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted }: CommentRowProps) {
   const [liked, setLiked] = useState(comment.liked ?? false)
   const [likeCount, setLikeCount] = useState(comment.likeCount)
   const [likingInProgress, setLikingInProgress] = useState(false)
@@ -75,7 +89,10 @@ function CommentRow({ comment, mediaId, postCaption, isReply }: CommentRowProps)
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [sent, setSent] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleted, setDeleted] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isOwn = comment.username === OWN_USERNAME
 
   const handleLike = async () => {
     if (likingInProgress) return
@@ -124,6 +141,20 @@ function CommentRow({ comment, mediaId, postCaption, isReply }: CommentRowProps)
     }
   }
 
+  const handleDelete = async () => {
+    if (deleting) return
+    setDeleting(true)
+    try {
+      await api.deleteComment(comment.id)
+      setDeleted(true)
+      onDeleted?.(comment.id)
+    } catch {
+      setDeleting(false)
+    }
+  }
+
+  if (deleted) return null
+
   return (
     <div style={{ paddingLeft: isReply ? 40 : 0 }}>
       <div
@@ -166,6 +197,18 @@ function CommentRow({ comment, mediaId, postCaption, isReply }: CommentRowProps)
                 >
                   <ReplyIcon />
                   Ответить
+                </button>
+              )}
+
+              {isOwn && (
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex items-center gap-1 text-xs transition-all"
+                  style={{ color: deleting ? 'var(--muted-foreground)' : '#e05252', cursor: deleting ? 'default' : 'pointer', background: 'none', border: 'none', padding: 0, opacity: deleting ? 0.5 : 1 }}
+                >
+                  <TrashIcon />
+                  {deleting ? '...' : 'Удалить'}
                 </button>
               )}
 
@@ -263,6 +306,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply }: CommentRowProps)
           mediaId={mediaId}
           postCaption={postCaption}
           isReply
+          onDeleted={onDeleted}
         />
       ))}
     </div>
@@ -361,6 +405,7 @@ export default function CommentsThread({ mediaId, media }: CommentsThreadProps) 
             comment={comment}
             mediaId={mediaId}
             postCaption={post?.caption || ''}
+            onDeleted={(id) => setComments(prev => prev.filter(c => c.id !== id))}
           />
         ))}
       </div>

@@ -89,6 +89,7 @@ export const api = {
   comments: (mediaId: string) => get<Comment[]>(`/media/${mediaId}/comments`),
   likeComment: (commentId: string) => post<{ ok: boolean }>(`/comments/${commentId}/like`, {}),
   unlikeComment: (commentId: string) => del<{ ok: boolean }>(`/comments/${commentId}/like`),
+  deleteComment: (commentId: string) => del<{ ok: boolean }>(`/comments/${commentId}`),
   replyToComment: (mediaId: string, text: string, commentId: string) =>
     post<{ ok: boolean; id?: string }>(`/media/${mediaId}/reply`, { text, commentId }),
   suggestCommentReply: (postCaption: string, commentText: string, username: string) =>

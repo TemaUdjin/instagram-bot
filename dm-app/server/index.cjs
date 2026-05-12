@@ -702,18 +702,20 @@ app.get('/api/media', async (req, res) => {
 app.get('/api/media/:id/comments', async (req, res) => {
   try {
     const data = await igGet(`${req.params.id}/comments`, {
-      fields: 'id,text,username,timestamp,like_count,replies{id,text,username,timestamp}'
+      fields: 'id,text,username,timestamp,like_count,from{id,name,username},replies{id,text,username,timestamp,from{id,name,username}}'
     })
+    const resolveUsername = (obj) =>
+      obj.username || obj.from?.username || obj.from?.name || ''
     const comments = (data.data || []).map(c => ({
       id: c.id,
       text: c.text || '',
-      username: c.username || '',
+      username: resolveUsername(c),
       timestamp: c.timestamp,
       likeCount: c.like_count || 0,
       replies: (c.replies?.data || []).map(r => ({
         id: r.id,
         text: r.text || '',
-        username: r.username || '',
+        username: resolveUsername(r),
         timestamp: r.timestamp
       }))
     }))
@@ -748,14 +750,30 @@ app.delete('/api/comments/:id/like', async (req, res) => {
   }
 })
 
-// POST /api/media/:id/reply
+// POST /api/media/:id/reply — reply to a specific comment
 app.post('/api/media/:id/reply', async (req, res) => {
   const { text, commentId } = req.body
   try {
-    const params = { message: text, access_token: TOKEN }
-    if (commentId) params.reply_to_id = commentId
-    const result = await axios.post(`${IG_API}/${req.params.id}/comments`, {}, { params })
+    // Replies go to /{comment-id}/replies, not /{media-id}/comments
+    const endpoint = commentId
+      ? `${IG_API}/${commentId}/replies`
+      : `${IG_API}/${req.params.id}/comments`
+    const result = await axios.post(endpoint, {}, {
+      params: { message: text, access_token: TOKEN }
+    })
     res.json({ ok: true, id: result.data.id })
+  } catch (err) {
+    res.status(500).json({ error: err.response?.data || err.message })
+  }
+})
+
+// DELETE /api/comments/:id — delete own comment
+app.delete('/api/comments/:id', async (req, res) => {
+  try {
+    await axios.delete(`${IG_API}/${req.params.id}`, {
+      params: { access_token: TOKEN }
+    })
+    res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: err.response?.data || err.message })
   }
