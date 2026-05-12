@@ -82,6 +82,26 @@
   background: #3e3e42;
 }
 
+@keyframes terminal-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.hack .terminal-cursor {
+  display: inline-block;
+  width: 9px;
+  height: 14px;
+  background: #c8a96e;
+  margin-left: 4px;
+  vertical-align: text-bottom;
+  animation: terminal-blink 1.1s step-end infinite;
+  border-radius: 1px;
+}
+
+.hack .app-title {
+  color: #c8a96e !important;
+}
+
 * {
   box-sizing: border-box;
   -webkit-font-smoothing: antialiased;

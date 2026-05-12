@@ -33,11 +33,14 @@ export default function Titlebar({ theme, onToggleTheme }: TitlebarProps) {
     >
       {/* Left: traffic lights space + app name */}
       <div className="flex items-center gap-3 pl-16">
-        <span
-          className="text-sm font-medium tracking-wide"
-          style={{ color: 'var(--muted-foreground)' }}
-        >
-          Toward Perfection
+        <span className="flex items-center">
+          <span
+            className="app-title text-sm font-medium tracking-wide"
+            style={{ color: 'var(--muted-foreground)' }}
+          >
+            Toward Perfection
+          </span>
+          {isHack && <span className="terminal-cursor" />}
         </span>
         <span
           className="text-xs px-1.5 py-0.5 rounded"
