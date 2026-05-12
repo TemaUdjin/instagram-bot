@@ -704,19 +704,27 @@ app.get('/api/media/:id/comments', async (req, res) => {
     const data = await igGet(`${req.params.id}/comments`, {
       fields: 'id,text,username,timestamp,like_count,replies{id,text,username,timestamp}'
     })
-    const comments = (data.data || []).map(c => ({
-      id: c.id,
-      text: c.text || '',
-      username: c.username || '',
-      timestamp: c.timestamp,
-      likeCount: c.like_count || 0,
-      replies: (c.replies?.data || []).map(r => ({
-        id: r.id,
-        text: r.text || '',
-        username: r.username || '',
-        timestamp: r.timestamp
+    const raw = data.data || []
+
+    // Collect all reply IDs to deduplicate top-level list
+    const replyIds = new Set()
+    raw.forEach(c => (c.replies?.data || []).forEach(r => replyIds.add(r.id)))
+
+    const comments = raw
+      .filter(c => !replyIds.has(c.id))
+      .map(c => ({
+        id: c.id,
+        text: c.text || '',
+        username: c.username || '',
+        timestamp: c.timestamp,
+        likeCount: c.like_count || 0,
+        replies: (c.replies?.data || []).map(r => ({
+          id: r.id,
+          text: r.text || '',
+          username: r.username || '',
+          timestamp: r.timestamp
+        }))
       }))
-    }))
     res.json(comments)
   } catch (err) {
     const errData = err.response?.data || err.message
