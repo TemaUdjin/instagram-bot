@@ -702,20 +702,18 @@ app.get('/api/media', async (req, res) => {
 app.get('/api/media/:id/comments', async (req, res) => {
   try {
     const data = await igGet(`${req.params.id}/comments`, {
-      fields: 'id,text,username,timestamp,like_count,from{id,name,username},replies{id,text,username,timestamp,from{id,name,username}}'
+      fields: 'id,text,username,timestamp,like_count,replies{id,text,username,timestamp}'
     })
-    const resolveUsername = (obj) =>
-      obj.username || obj.from?.username || obj.from?.name || ''
     const comments = (data.data || []).map(c => ({
       id: c.id,
       text: c.text || '',
-      username: resolveUsername(c),
+      username: c.username || '',
       timestamp: c.timestamp,
       likeCount: c.like_count || 0,
       replies: (c.replies?.data || []).map(r => ({
         id: r.id,
         text: r.text || '',
-        username: resolveUsername(r),
+        username: r.username || '',
         timestamp: r.timestamp
       }))
     }))
