@@ -2,6 +2,7 @@
 @import "@fontsource-variable/geist";
 
 @custom-variant dark (&:where(.dark, .dark *));
+@custom-variant hack (&:where(.hack, .hack *));
 
 :root {
   --background: #f3f3f3;
@@ -37,6 +38,28 @@
   --status-ignored: #4e4e52;
   --activity-bg: #181818;
   --tabbar-bg: #181818;
+}
+
+.hack {
+  --background: #0d0d0d;
+  --foreground: #9aba9a;
+  --muted: #111811;
+  --muted-foreground: #3d5c3d;
+  --border: #1a2e1a;
+  --accent: #3fb950;
+  --accent-hover: #56d267;
+  --card: #101610;
+  --card-foreground: #9aba9a;
+  --status-new: #3fb950;
+  --status-replied: #3d5c3d;
+  --status-client: #56d267;
+  --status-ignored: #1f2e1f;
+  --activity-bg: #080d08;
+  --tabbar-bg: #080d08;
+}
+
+.hack ::-webkit-scrollbar-thumb {
+  background: #1a2e1a;
 }
 
 * {

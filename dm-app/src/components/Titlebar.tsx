@@ -1,8 +1,17 @@
-import { MoonIcon, SunIcon } from './Icons'
+import { MoonIcon } from './Icons'
 
 interface TitlebarProps {
-  dark: boolean
+  theme: 'dark' | 'hack'
   onToggleTheme: () => void
+}
+
+function TerminalIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="4 17 10 11 4 5"/>
+      <line x1="12" y1="19" x2="20" y2="19"/>
+    </svg>
+  )
 }
 
 async function startDrag() {
@@ -12,7 +21,9 @@ async function startDrag() {
   } catch {}
 }
 
-export default function Titlebar({ dark, onToggleTheme }: TitlebarProps) {
+export default function Titlebar({ theme, onToggleTheme }: TitlebarProps) {
+  const isHack = theme === 'hack'
+
   return (
     <div
       data-tauri-drag-region
@@ -20,7 +31,7 @@ export default function Titlebar({ dark, onToggleTheme }: TitlebarProps) {
       className="titlebar flex items-center justify-between px-4 h-11 border-b shrink-0"
       style={{ borderColor: 'var(--border)' }}
     >
-      {/* Left: traffic lights space (80px) + app name */}
+      {/* Left: traffic lights space + app name */}
       <div className="flex items-center gap-3 pl-16">
         <span
           className="text-sm font-medium tracking-wide"
@@ -33,29 +44,44 @@ export default function Titlebar({ dark, onToggleTheme }: TitlebarProps) {
           style={{
             background: 'var(--muted)',
             color: 'var(--accent)',
-            fontWeight: 500
+            fontWeight: 500,
+            fontFamily: isHack ? 'monospace' : undefined,
+            letterSpacing: isHack ? '0.05em' : undefined,
           }}
         >
-          DM
+          {isHack ? '_DM' : 'DM'}
         </span>
       </div>
 
       {/* Right: theme toggle */}
       <button
         onClick={onToggleTheme}
-        className="p-1.5 rounded-md transition-colors cursor-pointer"
-        style={{ color: 'var(--muted-foreground)' }}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--muted)'
-          ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--foreground)'
+        className="flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors cursor-pointer text-xs"
+        style={{
+          color: 'var(--muted-foreground)',
+          fontFamily: isHack ? 'monospace' : undefined,
         }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLButtonElement).style.background = 'transparent'
-          ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--muted-foreground)'
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'var(--muted)'
+          e.currentTarget.style.color = 'var(--accent)'
         }}
-        title={dark ? 'Светлая тема' : 'Тёмная тема'}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'transparent'
+          e.currentTarget.style.color = 'var(--muted-foreground)'
+        }}
+        title={isHack ? 'Тёмная тема' : 'Hack mode'}
       >
-        {dark ? <SunIcon /> : <MoonIcon />}
+        {isHack ? (
+          <>
+            <MoonIcon />
+            <span style={{ fontSize: 10, opacity: 0.7 }}>normal</span>
+          </>
+        ) : (
+          <>
+            <TerminalIcon />
+            <span style={{ fontSize: 10, opacity: 0.7 }}>hack</span>
+          </>
+        )}
       </button>
     </div>
   )

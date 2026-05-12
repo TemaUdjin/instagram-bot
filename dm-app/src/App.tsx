@@ -23,7 +23,7 @@ function PlaceholderPanel({ icon, label, desc }: { icon: string; label: string; 
 }
 
 export default function App() {
-  const [dark, setDark] = useState(true)
+  const [theme, setTheme] = useState<'dark' | 'hack'>('dark')
   const [activity, setActivity] = useState('inbox')
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
@@ -49,8 +49,9 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark)
-  }, [dark])
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    document.documentElement.classList.toggle('hack', theme === 'hack')
+  }, [theme])
 
   // Load media list when switching to comments mode
   useEffect(() => {
@@ -127,7 +128,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--background)' }}>
-      <Titlebar dark={dark} onToggleTheme={() => setDark(d => !d)} />
+      <Titlebar theme={theme} onToggleTheme={() => setTheme(t => t === 'dark' ? 'hack' : 'dark')} />
 
       <div className="flex flex-1 overflow-hidden">
         <ActivityBar active={activity} onSelect={setActivity} />
