@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:where(.dark, .dark *));
 @custom-variant hack (&:where(.hack, .hack *));
@@ -41,25 +42,38 @@
 }
 
 .hack {
-  --background: #0d1117;
-  --foreground: #e6edf3;
-  --muted: #161b22;
-  --muted-foreground: #8b949e;
-  --border: #30363d;
-  --accent: #3fb950;
-  --accent-hover: #56d267;
-  --card: #161b22;
-  --card-foreground: #e6edf3;
-  --status-new: #3fb950;
-  --status-replied: #8b949e;
-  --status-client: #56d267;
-  --status-ignored: #30363d;
-  --activity-bg: #010409;
-  --tabbar-bg: #010409;
+  --background: #1e1e1e;
+  --foreground: #d4d4d4;
+  --muted: #252526;
+  --muted-foreground: #858585;
+  --border: #3e3e42;
+  --accent: #4ec994;
+  --accent-hover: #5fd9a4;
+  --card: #252526;
+  --card-foreground: #d4d4d4;
+  --status-new: #4ec994;
+  --status-replied: #858585;
+  --status-client: #4ec994;
+  --status-ignored: #4e4e52;
+  --activity-bg: #181818;
+  --tabbar-bg: #181818;
+
+  /* VS Code-like semantic colors */
+  --hack-username: #9cdcfe;
+  --hack-time: #6a9955;
+  --hack-outgoing: #ce9178;
+  --hack-incoming: #d4d4d4;
+  --hack-label: #c586c0;
+  --hack-string: #4ec994;
+}
+
+.hack body,
+.hack * {
+  font-family: 'Geist Mono Variable', 'SF Mono', 'Fira Code', ui-monospace, monospace !important;
 }
 
 .hack ::-webkit-scrollbar-thumb {
-  background: #30363d;
+  background: #3e3e42;
 }
 
 * {
