@@ -702,16 +702,20 @@ app.get('/api/media', async (req, res) => {
 app.get('/api/media/:id/comments', async (req, res) => {
   try {
     const data = await igGet(`${req.params.id}/comments`, {
-      fields: 'id,text,username,timestamp'
+      fields: 'id,text,username,timestamp,like_count,replies{id,text,username,timestamp}'
     })
-    console.log('comments raw:', JSON.stringify(data).slice(0, 300))
     const comments = (data.data || []).map(c => ({
       id: c.id,
       text: c.text || '',
       username: c.username || '',
       timestamp: c.timestamp,
-      likeCount: 0,
-      replies: []
+      likeCount: c.like_count || 0,
+      replies: (c.replies?.data || []).map(r => ({
+        id: r.id,
+        text: r.text || '',
+        username: r.username || '',
+        timestamp: r.timestamp
+      }))
     }))
     res.json(comments)
   } catch (err) {
