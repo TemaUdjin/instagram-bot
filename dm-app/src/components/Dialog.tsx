@@ -55,6 +55,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
+    setText('')
     if (!conversationId) { setDetail(null); setIsClient(false); return }
     setDetail(null) // clear stale data before loading new conversation
     setIsClient(false)
