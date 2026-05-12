@@ -106,7 +106,13 @@ async function fetchConversations(folder = 'primary') {
       for (const msg of messages.reverse()) {
         const isOutgoing = msg.from?.id === BUSINESS_ID
         const msgList = folderCache[folder][senderId].messages
-        const alreadyExists = msgList.some(m => m.id === msg.id)
+        const msgText = msg.message || ''
+        const msgTime = new Date(msg.created_time).getTime()
+        const alreadyExists = msgList.some(m =>
+          m.id === msg.id ||
+          (m.type === 'outgoing' && m.text === msgText &&
+            Math.abs(new Date(m.time).getTime() - msgTime) < 300000)
+        )
         if (!alreadyExists) {
           msgList.push({
             id: msg.id,
@@ -183,7 +189,10 @@ app.get('/api/conversations', async (req, res) => {
         folder: conv.profile.folder || 'primary',
         lastMessage: lastMsg?.text || '',
         waitMinutes,
-        unread: msgs.filter(m => m.type === 'incoming' && !m.read).length
+        unread: (() => {
+          const lastRead = conversationsCache[id]?.profile?.lastRead
+          return msgs.filter(m => m.type === 'incoming' && (!lastRead || new Date(m.time) > new Date(lastRead))).length
+        })()
       }
     }).sort((a, b) => b.waitMinutes - a.waitMinutes)
   res.json(list)
@@ -199,10 +208,13 @@ app.get('/api/conversations/:id/messages', (req, res) => {
   if (!conv) conv = conversationsCache[id]
   if (!conv) return res.json({ profile: {}, messages: [] })
 
-  // Mark all incoming messages as read
+  // Mark all incoming messages as read and persist lastRead timestamp
   if (conv.messages) {
     conv.messages.forEach(m => { if (m.type === 'incoming') m.read = true })
   }
+  if (!conversationsCache[id]) conversationsCache[id] = { profile: {}, messages: [] }
+  conversationsCache[id].profile.lastRead = new Date().toISOString()
+  saveConversations()
 
   res.json({ profile: conv.profile, messages: conv.messages || [] })
 })
