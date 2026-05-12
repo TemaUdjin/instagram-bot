@@ -252,7 +252,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
             )}
 
             <div
-              className="max-w-sm rounded-2xl text-sm leading-relaxed"
+              className="max-w-sm rounded-2xl text-xs leading-relaxed"
               style={
                 msg.type === 'outgoing'
                   ? {
@@ -275,8 +275,8 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
               <p style={{ marginBottom: 4, opacity: msg.text ? 1 : 0.5 }}>
                 {msg.text || ((msg as any).attachments?.length ? '📎 Attachment' : '🎤 Voice')}
               </p>
-              <span style={{ fontSize: 11, color: 'var(--msg-time, var(--muted-foreground))', float: 'right', marginLeft: 8 }}>
-                {msg.time?.length > 5 ? new Date(msg.time).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }) : msg.time}
+              <span style={{ fontSize: 10, color: 'var(--msg-time, var(--muted-foreground))', float: 'right', marginLeft: 8 }}>
+                {msg.time?.length > 5 ? new Date(msg.time).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', hour12: false }) : msg.time}
               </span>
             </div>
           </div>
