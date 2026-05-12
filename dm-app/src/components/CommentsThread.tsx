@@ -128,7 +128,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted }: Comme
     if (!text.trim() || sending) return
     setSending(true)
     try {
-      await api.replyToComment(mediaId, text.trim(), comment.id)
+      await api.replyToComment(mediaId, text.trim(), comment.id, comment.username || undefined)
       setReplyText('')
       setSuggestions([])
       setReplyOpen(false)

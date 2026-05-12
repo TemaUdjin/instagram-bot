@@ -90,8 +90,8 @@ export const api = {
   likeComment: (commentId: string) => post<{ ok: boolean }>(`/comments/${commentId}/like`, {}),
   unlikeComment: (commentId: string) => del<{ ok: boolean }>(`/comments/${commentId}/like`),
   deleteComment: (commentId: string) => del<{ ok: boolean }>(`/comments/${commentId}`),
-  replyToComment: (mediaId: string, text: string, commentId: string) =>
-    post<{ ok: boolean; id?: string }>(`/media/${mediaId}/reply`, { text, commentId }),
+  replyToComment: (mediaId: string, text: string, commentId: string, username?: string) =>
+    post<{ ok: boolean; id?: string }>(`/media/${mediaId}/reply`, { text, commentId, username }),
   suggestCommentReply: (postCaption: string, commentText: string, username: string) =>
     post<{ suggestions: string[] }>('/claude/suggest-comment', { postCaption, commentText, username }),
 }

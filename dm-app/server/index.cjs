@@ -702,25 +702,22 @@ app.get('/api/media', async (req, res) => {
 app.get('/api/media/:id/comments', async (req, res) => {
   try {
     const data = await igGet(`${req.params.id}/comments`, {
-      fields: 'id,text,username,timestamp,like_count,replies{id,text,username,timestamp}'
+      fields: 'id,text,username,timestamp'
     })
+    console.log('comments raw:', JSON.stringify(data).slice(0, 300))
     const comments = (data.data || []).map(c => ({
       id: c.id,
       text: c.text || '',
       username: c.username || '',
       timestamp: c.timestamp,
-      likeCount: c.like_count || 0,
-      replies: (c.replies?.data || []).map(r => ({
-        id: r.id,
-        text: r.text || '',
-        username: r.username || '',
-        timestamp: r.timestamp
-      }))
+      likeCount: 0,
+      replies: []
     }))
     res.json(comments)
   } catch (err) {
-    console.error('comments error:', err.response?.data || err.message)
-    res.status(500).json({ error: err.message })
+    const errData = err.response?.data || err.message
+    console.error('comments error:', JSON.stringify(errData))
+    res.status(500).json({ error: errData })
   }
 })
 
@@ -750,18 +747,22 @@ app.delete('/api/comments/:id/like', async (req, res) => {
 
 // POST /api/media/:id/reply — reply to a specific comment
 app.post('/api/media/:id/reply', async (req, res) => {
-  const { text, commentId } = req.body
+  const { text, commentId, username } = req.body
   try {
-    // Replies go to /{comment-id}/replies, not /{media-id}/comments
+    // Prefix @username if known — required by IG for proper threading
+    const message = username ? `@${username} ${text}` : text
     const endpoint = commentId
       ? `${IG_API}/${commentId}/replies`
       : `${IG_API}/${req.params.id}/comments`
     const result = await axios.post(endpoint, {}, {
-      params: { message: text, access_token: TOKEN }
+      params: { message, access_token: TOKEN }
     })
+    console.log(`✅ Reply sent to ${commentId || req.params.id}: "${message.slice(0, 60)}"`)
     res.json({ ok: true, id: result.data.id })
   } catch (err) {
-    res.status(500).json({ error: err.response?.data || err.message })
+    const errData = err.response?.data || err.message
+    console.error('reply error:', JSON.stringify(errData))
+    res.status(500).json({ error: errData })
   }
 })
 
