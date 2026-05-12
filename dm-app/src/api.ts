@@ -1,5 +1,24 @@
 const BASE = 'http://localhost:3001/api'
 
+export interface MediaItem {
+  id: string
+  caption: string
+  type: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM'
+  thumbnail: string | null
+  timestamp: string
+  commentsCount: number
+}
+
+export interface Comment {
+  id: string
+  text: string
+  username: string
+  timestamp: string
+  likeCount: number
+  liked?: boolean
+  replies: { id: string; text: string; username: string; timestamp: string }[]
+}
+
 export interface ConversationSummary {
   id: string
   name: string
@@ -54,6 +73,11 @@ async function patch<T>(path: string, body: object): Promise<T> {
   return res.json()
 }
 
+async function del<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { method: 'DELETE' })
+  return res.json()
+}
+
 export const api = {
   health: () => get<{ ok: boolean; connected: boolean; selfId: string; conversations: number }>('/health'),
   conversations: () => get<ConversationSummary[]>('/conversations'),
@@ -61,4 +85,12 @@ export const api = {
   send: (id: string, text: string) => post<{ ok: boolean }>(`/conversations/${id}/send`, { text }),
   setStatus: (id: string, status: string) => patch(`/conversations/${id}/status`, { status }),
   setNote: (id: string, note: string) => patch(`/conversations/${id}/status`, { note }),
+  media: () => get<MediaItem[]>('/media'),
+  comments: (mediaId: string) => get<Comment[]>(`/media/${mediaId}/comments`),
+  likeComment: (commentId: string) => post<{ ok: boolean }>(`/comments/${commentId}/like`, {}),
+  unlikeComment: (commentId: string) => del<{ ok: boolean }>(`/comments/${commentId}/like`),
+  replyToComment: (mediaId: string, text: string, commentId: string) =>
+    post<{ ok: boolean; id?: string }>(`/media/${mediaId}/reply`, { text, commentId }),
+  suggestCommentReply: (postCaption: string, commentText: string, username: string) =>
+    post<{ suggestions: string[] }>('/claude/suggest-comment', { postCaption, commentText, username }),
 }

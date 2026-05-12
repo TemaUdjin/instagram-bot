@@ -6,7 +6,9 @@ import SuggestionsPanel from './components/SuggestionsPanel'
 import ActivityBar from './components/ActivityBar'
 import TabBar, { Tab } from './components/TabBar'
 import ResizeHandle from './components/ResizeHandle'
-import { api } from './api'
+import ReelsPanel from './components/ReelsPanel'
+import CommentsThread from './components/CommentsThread'
+import { api, MediaItem } from './api'
 import StylePanel from './components/StylePanel'
 
 function PlaceholderPanel({ icon, label, desc }: { icon: string; label: string; desc: string }) {
@@ -34,7 +36,12 @@ export default function App() {
   const [lastSentText, setLastSentText] = useState<{ text: string; ts: number } | null>(null)
   const [prefillText, setPrefillText] = useState<{ text: string; ts: number } | null>(null)
 
-  // Check server health on mount
+  // Comments mode state
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null)
+  const [mediaList, setMediaList] = useState<MediaItem[]>([])
+
+  const isCommentsMode = activity === 'comments'
+
   useEffect(() => {
     api.health()
       .then(h => setServerOnline(h.ok && h.connected))
@@ -45,13 +52,19 @@ export default function App() {
     document.documentElement.classList.toggle('dark', dark)
   }, [dark])
 
+  // Load media list when switching to comments mode
+  useEffect(() => {
+    if (activity === 'comments' && mediaList.length === 0) {
+      api.media().then(setMediaList).catch(() => {})
+    }
+  }, [activity])
+
   const openTab = useCallback((id: string) => {
     setTabs(prev => {
       if (prev.find(t => t.id === id)) return prev
       return [...prev, { id, name: `...`, username: '' }]
     })
     setActiveTabId(id)
-    // Load real name from API and update tab
     api.messages(id)
       .then(detail => {
         const name = detail.profile.username || detail.profile.name || id.slice(-6)
@@ -81,38 +94,36 @@ export default function App() {
     const handler = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey
 
-      // ⌘K — focus search in inbox
       if (meta && e.key === 'k') {
         e.preventDefault()
         const input = document.querySelector<HTMLInputElement>('input[placeholder*="Поиск"]')
         input?.focus()
       }
 
-      // ⌘[ and ⌘] — switch tabs
-      if (meta && e.key === '[') {
-        e.preventDefault()
-        setActiveTabId(id => {
-          const idx = tabs.findIndex(t => t.id === id)
-          return idx > 0 ? tabs[idx - 1].id : id
-        })
-      }
-      if (meta && e.key === ']') {
-        e.preventDefault()
-        setActiveTabId(id => {
-          const idx = tabs.findIndex(t => t.id === id)
-          return idx < tabs.length - 1 ? tabs[idx + 1].id : id
-        })
-      }
-
-      // ⌘W — close current tab
-      if (meta && e.key === 'w' && activeTabId) {
-        e.preventDefault()
-        closeTab(activeTabId)
+      if (!isCommentsMode) {
+        if (meta && e.key === '[') {
+          e.preventDefault()
+          setActiveTabId(id => {
+            const idx = tabs.findIndex(t => t.id === id)
+            return idx > 0 ? tabs[idx - 1].id : id
+          })
+        }
+        if (meta && e.key === ']') {
+          e.preventDefault()
+          setActiveTabId(id => {
+            const idx = tabs.findIndex(t => t.id === id)
+            return idx < tabs.length - 1 ? tabs[idx + 1].id : id
+          })
+        }
+        if (meta && e.key === 'w' && activeTabId) {
+          e.preventDefault()
+          closeTab(activeTabId)
+        }
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [tabs, activeTabId])
+  }, [tabs, activeTabId, isCommentsMode])
 
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--background)' }}>
@@ -124,6 +135,7 @@ export default function App() {
         {/* Left panel */}
         <div style={{ width: inboxWidth, minWidth: inboxWidth, maxWidth: inboxWidth }}>
           {activity === 'inbox' && <Inbox activeId={activeTabId} onSelect={openTab} serverOnline={serverOnline} refreshKey={inboxRefreshKey} />}
+          {activity === 'comments' && <ReelsPanel activeId={selectedMediaId} onSelect={setSelectedMediaId} />}
           {activity === 'clients' && <PlaceholderPanel icon="⭐" label="Клиенты" desc="Контакты со статусом «Клиент»" />}
           {activity === 'stats' && <PlaceholderPanel icon="📊" label="Статистика" desc="Ответов сегодня, среднее время" />}
           {activity === 'style' && <StylePanel />}
@@ -132,36 +144,45 @@ export default function App() {
 
         <ResizeHandle onResize={resizeInbox} />
 
-        {/* Center: tabs + dialog */}
+        {/* Center */}
         <div className="flex-1 flex flex-col overflow-hidden min-h-0" style={{ minWidth: 300 }}>
-          <TabBar tabs={tabs} activeId={activeTabId} onSelect={setActiveTabId} onClose={closeTab} />
-          <Dialog
-            conversationId={activeTabId}
-            refreshKey={dialogRefreshKey}
-            pendingSentText={lastSentText}
-            prefillText={prefillText}
-            serverOnline={serverOnline}
-            onAskClaude={(messages) => {
-              setClaudeTrigger({ conversationId: activeTabId, messages, ts: Date.now() })
-            }}
-            onSent={() => setInboxRefreshKey(k => k + 1)}
-          />
+          {isCommentsMode ? (
+            <CommentsThread mediaId={selectedMediaId} media={mediaList} />
+          ) : (
+            <>
+              <TabBar tabs={tabs} activeId={activeTabId} onSelect={setActiveTabId} onClose={closeTab} />
+              <Dialog
+                conversationId={activeTabId}
+                refreshKey={dialogRefreshKey}
+                pendingSentText={lastSentText}
+                prefillText={prefillText}
+                serverOnline={serverOnline}
+                onAskClaude={(messages) => {
+                  setClaudeTrigger({ conversationId: activeTabId, messages, ts: Date.now() })
+                }}
+                onSent={() => setInboxRefreshKey(k => k + 1)}
+              />
+            </>
+          )}
         </div>
 
-        <ResizeHandle onResize={resizeClaude} />
-
-        {/* Claude panel */}
-        <div style={{ width: claudeWidth, minWidth: claudeWidth, maxWidth: claudeWidth }}>
-          <SuggestionsPanel
-            conversationId={activeTabId}
-            onSelect={(text) => {
-              setLastSentText({ text, ts: Date.now() })
-            }}
-            onSent={() => setInboxRefreshKey(k => k + 1)}
-            onUseTemplate={(text) => setPrefillText({ text, ts: Date.now() })}
-            trigger={claudeTrigger}
-          />
-        </div>
+        {/* Claude panel — hidden in comments mode (Claude is inline per comment) */}
+        {!isCommentsMode && (
+          <>
+            <ResizeHandle onResize={resizeClaude} />
+            <div style={{ width: claudeWidth, minWidth: claudeWidth, maxWidth: claudeWidth }}>
+              <SuggestionsPanel
+                conversationId={activeTabId}
+                onSelect={(text) => {
+                  setLastSentText({ text, ts: Date.now() })
+                }}
+                onSent={() => setInboxRefreshKey(k => k + 1)}
+                onUseTemplate={(text) => setPrefillText({ text, ts: Date.now() })}
+                trigger={claudeTrigger}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

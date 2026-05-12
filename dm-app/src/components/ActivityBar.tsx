@@ -5,6 +5,7 @@ interface ActivityBarProps {
 
 const items = [
   { id: 'inbox', label: 'Диалоги', icon: InboxIcon },
+  { id: 'comments', label: 'Комментарии', icon: CommentsIcon },
   { id: 'clients', label: 'Клиенты', icon: ClientsIcon },
   { id: 'stats', label: 'Статистика', icon: StatsIcon },
   { id: 'style', label: 'Стиль Claude', icon: StyleIcon },
@@ -14,6 +15,16 @@ function InboxIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+  )
+}
+
+function CommentsIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      <line x1="9" y1="10" x2="15" y2="10"/>
+      <line x1="9" y1="14" x2="13" y2="14"/>
     </svg>
   )
 }

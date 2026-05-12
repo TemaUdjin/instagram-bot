@@ -667,6 +667,130 @@ Generate 3 reply options for Yujin to send. Rules:
   }
 })
 
+// ─── Media / Comments ────────────────────────────────────────────
+
+let mediaCache = []
+let mediaCacheTime = 0
+const MEDIA_CACHE_TTL = 60000
+
+// GET /api/media
+app.get('/api/media', async (req, res) => {
+  try {
+    if (Date.now() - mediaCacheTime < MEDIA_CACHE_TTL && mediaCache.length) {
+      return res.json(mediaCache)
+    }
+    const data = await igGet(`${BUSINESS_ID}/media`, {
+      fields: 'id,caption,media_type,thumbnail_url,media_url,timestamp,comments_count'
+    })
+    mediaCache = (data.data || []).map(m => ({
+      id: m.id,
+      caption: m.caption || '',
+      type: m.media_type,
+      thumbnail: m.thumbnail_url || m.media_url || null,
+      timestamp: m.timestamp,
+      commentsCount: m.comments_count || 0
+    }))
+    mediaCacheTime = Date.now()
+    res.json(mediaCache)
+  } catch (err) {
+    console.error('media list error:', err.response?.data || err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// GET /api/media/:id/comments
+app.get('/api/media/:id/comments', async (req, res) => {
+  try {
+    const data = await igGet(`${req.params.id}/comments`, {
+      fields: 'id,text,username,timestamp,like_count,replies{id,text,username,timestamp}'
+    })
+    const comments = (data.data || []).map(c => ({
+      id: c.id,
+      text: c.text || '',
+      username: c.username || '',
+      timestamp: c.timestamp,
+      likeCount: c.like_count || 0,
+      replies: (c.replies?.data || []).map(r => ({
+        id: r.id,
+        text: r.text || '',
+        username: r.username || '',
+        timestamp: r.timestamp
+      }))
+    }))
+    res.json(comments)
+  } catch (err) {
+    console.error('comments error:', err.response?.data || err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/comments/:id/like
+app.post('/api/comments/:id/like', async (req, res) => {
+  try {
+    await axios.post(`${IG_API}/${req.params.id}/likes`, {}, {
+      params: { access_token: TOKEN }
+    })
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err.response?.data || err.message })
+  }
+})
+
+// DELETE /api/comments/:id/like (unlike)
+app.delete('/api/comments/:id/like', async (req, res) => {
+  try {
+    await axios.delete(`${IG_API}/${req.params.id}/likes`, {
+      params: { access_token: TOKEN }
+    })
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err.response?.data || err.message })
+  }
+})
+
+// POST /api/media/:id/reply
+app.post('/api/media/:id/reply', async (req, res) => {
+  const { text, commentId } = req.body
+  try {
+    const params = { message: text, access_token: TOKEN }
+    if (commentId) params.reply_to_id = commentId
+    const result = await axios.post(`${IG_API}/${req.params.id}/comments`, {}, { params })
+    res.json({ ok: true, id: result.data.id })
+  } catch (err) {
+    res.status(500).json({ error: err.response?.data || err.message })
+  }
+})
+
+// POST /api/claude/suggest-comment
+app.post('/api/claude/suggest-comment', async (req, res) => {
+  const { postCaption, commentText, username } = req.body
+  const systemPrompt = `${skillPrompt}
+
+Generate 3 reply options for Yujin to reply to an Instagram comment. Rules:
+- All options must be in English, no dashes
+- Concise and natural (1-3 sentences max)
+- Match Yujin's style: warm, direct, encouraging
+- Return ONLY a valid JSON array, no markdown:
+["option 1", "option 2", "option 3"]`
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 512,
+      system: systemPrompt,
+      messages: [{
+        role: 'user',
+        content: `Post: "${(postCaption || '').slice(0, 200)}"\n@${username} commented: "${commentText}"\n\nSuggest 3 reply options.`
+      }]
+    })
+    const text = response.content[0].text.trim()
+    const suggestions = extractSuggestions(text)
+    res.json({ suggestions: suggestions || [text] })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 const PORT = process.env.DM_SERVER_PORT || 3001
 app.listen(PORT, async () => {
   console.log(`🚀 DM Server running on http://localhost:${PORT}`)
