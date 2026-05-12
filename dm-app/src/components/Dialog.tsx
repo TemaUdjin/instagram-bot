@@ -168,7 +168,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
             : <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{ background: 'var(--accent)', color: '#1a1610' }}>{displayName[0]}</div>
           }
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>{displayName}</div>
+            <div className="text-sm font-semibold" style={{ color: 'var(--msg-username, var(--foreground))' }}>{displayName}</div>
             <a href={igLink} target="_blank" rel="noreferrer" className="text-xs hover:underline" style={{ color: 'var(--muted-foreground)' }}>
               {displayUsername ? `@${displayUsername}` : 'Instagram'} ↗
             </a>
@@ -256,7 +256,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
               style={
                 msg.type === 'outgoing'
                   ? {
-                      background: 'var(--card)',
+                      background: 'var(--msg-outgoing-bg, var(--card))',
                       color: 'var(--foreground)',
                       padding: '10px 14px',
                       borderRadius: '18px 18px 4px 18px',
@@ -264,7 +264,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
                       boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
                     }
                   : {
-                      background: 'var(--muted)',
+                      background: 'var(--msg-incoming-bg, var(--muted))',
                       color: 'var(--foreground)',
                       padding: '10px 14px',
                       borderRadius: '18px 18px 18px 4px',
@@ -275,7 +275,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
               <p style={{ marginBottom: 4, opacity: msg.text ? 1 : 0.5 }}>
                 {msg.text || ((msg as any).attachments?.length ? '📎 Вложение' : '🎤 Голосовое')}
               </p>
-              <span style={{ fontSize: 11, opacity: 0.5, float: 'right', marginLeft: 8 }}>
+              <span style={{ fontSize: 11, color: 'var(--msg-time, var(--muted-foreground))', float: 'right', marginLeft: 8 }}>
                 {msg.time?.length > 5 ? new Date(msg.time).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }) : msg.time}
               </span>
             </div>

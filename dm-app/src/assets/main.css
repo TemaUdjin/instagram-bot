@@ -21,6 +21,10 @@
   --status-ignored: #999999;
   --activity-bg: #2c2c2c;
   --tabbar-bg: #ececec;
+  --msg-outgoing-bg: #ffffff;
+  --msg-incoming-bg: #e8e8e8;
+  --msg-time: #717171;
+  --msg-username: #1e1e1e;
 }
 
 .dark {
@@ -39,6 +43,10 @@
   --status-ignored: #4e4e52;
   --activity-bg: #181818;
   --tabbar-bg: #181818;
+  --msg-outgoing-bg: #252526;
+  --msg-incoming-bg: #252526;
+  --msg-time: #858585;
+  --msg-username: #d4d4d4;
 }
 
 .hack {
@@ -58,13 +66,11 @@
   --activity-bg: #181818;
   --tabbar-bg: #181818;
 
-  /* VS Code-like semantic colors */
-  --hack-username: #9cdcfe;
-  --hack-time: #6a9955;
-  --hack-outgoing: #ce9178;
-  --hack-incoming: #d4d4d4;
-  --hack-label: #c586c0;
-  --hack-string: #4ec994;
+  /* Message-specific */
+  --msg-outgoing-bg: #1a2a1e;
+  --msg-incoming-bg: #1a1a2e;
+  --msg-time: #6a9955;
+  --msg-username: #9cdcfe;
 }
 
 .hack body,
