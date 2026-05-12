@@ -41,25 +41,25 @@
 }
 
 .hack {
-  --background: #0d0d0d;
-  --foreground: #9aba9a;
-  --muted: #111811;
-  --muted-foreground: #3d5c3d;
-  --border: #1a2e1a;
+  --background: #0d1117;
+  --foreground: #e6edf3;
+  --muted: #161b22;
+  --muted-foreground: #8b949e;
+  --border: #30363d;
   --accent: #3fb950;
   --accent-hover: #56d267;
-  --card: #101610;
-  --card-foreground: #9aba9a;
+  --card: #161b22;
+  --card-foreground: #e6edf3;
   --status-new: #3fb950;
-  --status-replied: #3d5c3d;
+  --status-replied: #8b949e;
   --status-client: #56d267;
-  --status-ignored: #1f2e1f;
-  --activity-bg: #080d08;
-  --tabbar-bg: #080d08;
+  --status-ignored: #30363d;
+  --activity-bg: #010409;
+  --tabbar-bg: #010409;
 }
 
 .hack ::-webkit-scrollbar-thumb {
-  background: #1a2e1a;
+  background: #30363d;
 }
 
 * {
