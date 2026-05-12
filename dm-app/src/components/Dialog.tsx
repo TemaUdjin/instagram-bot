@@ -257,7 +257,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
                 msg.type === 'outgoing'
                   ? {
                       background: 'var(--msg-outgoing-bg, var(--card))',
-                      color: 'var(--foreground)',
+                      color: 'var(--msg-outgoing-color, var(--foreground))',
                       padding: '10px 14px',
                       borderRadius: '18px 18px 4px 18px',
                       borderLeft: '2px solid var(--accent)',
@@ -265,7 +265,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
                     }
                   : {
                       background: 'var(--msg-incoming-bg, var(--muted))',
-                      color: 'var(--foreground)',
+                      color: 'var(--msg-incoming-color, var(--foreground))',
                       padding: '10px 14px',
                       borderRadius: '18px 18px 18px 4px',
                       border: '1px solid var(--border)',

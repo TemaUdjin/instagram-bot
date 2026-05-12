@@ -47,6 +47,8 @@
   --tabbar-bg: #181818;
   --msg-outgoing-bg: #252526;
   --msg-incoming-bg: #252526;
+  --msg-incoming-color: var(--foreground);
+  --msg-outgoing-color: var(--foreground);
   --msg-time: #858585;
   --msg-username: #d4d4d4;
   --avatar-bg: #c8a96e;
@@ -73,10 +75,16 @@
   /* Message bubbles — VS Code style */
   --msg-outgoing-bg: #141414;
   --msg-incoming-bg: #252526;
+  --msg-incoming-color: #9cdcfe;
+  --msg-outgoing-color: #d4d4d4;
   --msg-time: #6a9955;
   --msg-username: #9cdcfe;
   --avatar-bg: #c8a96e;
   --avatar-text: #1a1610;
+}
+
+.hack body {
+  font-size: 12px;
 }
 
 .hack body,
