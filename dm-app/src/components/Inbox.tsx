@@ -186,7 +186,7 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
               {/* Avatar — real or initial */}
               {conv.avatar
                 ? <img src={conv.avatar} className="w-8 h-8 rounded-full shrink-0 mt-0.5 object-cover" alt={conv.name} />
-                : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5" style={{ background: 'var(--accent)', color: '#1a1610' }}>{conv.name[0]}</div>
+                : <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5" style={{ background: 'var(--avatar-bg)', color: 'var(--avatar-text)' }}>{conv.name[0]}</div>
               }
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1 mb-0.5">

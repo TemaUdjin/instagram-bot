@@ -165,7 +165,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
         <div className="px-5 py-3 flex items-center gap-3">
           {avatar
             ? <img src={avatar} className="w-9 h-9 rounded-full shrink-0 object-cover" alt={displayName} />
-            : <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{ background: 'var(--accent)', color: '#1a1610' }}>{displayName[0]}</div>
+            : <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style={{ background: 'var(--avatar-bg)', color: 'var(--avatar-text)' }}>{displayName[0]}</div>
           }
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold" style={{ color: 'var(--msg-username, var(--foreground))' }}>{displayName}</div>
@@ -245,7 +245,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
             {msg.type === 'incoming' && (
               <div
                 className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-1"
-                style={{ background: 'var(--accent)', color: '#1a1610' }}
+                style={{ background: 'var(--avatar-bg)', color: 'var(--avatar-text)' }}
               >
                 А
               </div>
