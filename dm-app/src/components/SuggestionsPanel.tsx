@@ -217,7 +217,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
             background: 'transparent', cursor: 'pointer',
           }}
         >
-          📌 Шаблоны
+          📌 Templates
         </button>
       </div>
 
@@ -321,7 +321,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
             <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center mt-8">
               <div style={{ fontSize: 24, opacity: 0.4 }}>✦</div>
               <p className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>
-                Нажми «Спросить Claude» в диалоге
+                Press 'Ask Claude' in the chat
               </p>
             </div>
           )}
@@ -471,7 +471,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
                 content: `📎 ${file.name}`
               }, {
                 role: 'claude', type: 'text',
-                content: 'Вижу изображение. Анализирую... (Vision API будет подключён в Фазе 3)'
+                content: 'Image received. Vision API — coming in Phase 3'
               }])
             }} />
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -505,7 +505,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
                 const dataUrl = ev.target?.result as string
                 setMessages(prev => [...prev,
                   { role: 'user', type: 'image' as any, content: dataUrl },
-                  { role: 'claude', type: 'text', content: 'Вижу скриншот. Анализирую... (Vision API подключим в Фазе 3)' }
+                  { role: 'claude', type: 'text', content: 'Screenshot received. Vision API — coming in Phase 3' }
                 ])
               }
               reader.readAsDataURL(file)

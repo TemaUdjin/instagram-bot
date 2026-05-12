@@ -249,7 +249,7 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
       {/* Footer */}
       <div className="px-4 py-2 border-t flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
         <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-          {active.length} активных · {all.length} всего
+          {active.length} active · {all.length} total
         </span>
         <div className="flex items-center gap-2">
           {hidden.size > 0 && (
