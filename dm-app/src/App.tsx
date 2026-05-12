@@ -17,7 +17,7 @@ function PlaceholderPanel({ icon, label, desc }: { icon: string; label: string; 
       <div className="text-3xl">{icon}</div>
       <div className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{label}</div>
       <div className="text-xs text-center px-4" style={{ color: 'var(--muted-foreground)' }}>{desc}</div>
-      <div className="text-xs mt-2" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>Скоро</div>
+      <div className="text-xs mt-2" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>Coming soon</div>
     </div>
   )
 }
@@ -97,7 +97,7 @@ export default function App() {
 
       if (meta && e.key === 'k') {
         e.preventDefault()
-        const input = document.querySelector<HTMLInputElement>('input[placeholder*="Поиск"]')
+        const input = document.querySelector<HTMLInputElement>('input[placeholder*="Search"]')
         input?.focus()
       }
 
@@ -137,10 +137,10 @@ export default function App() {
         <div style={{ width: inboxWidth, minWidth: inboxWidth, maxWidth: inboxWidth }}>
           {activity === 'inbox' && <Inbox activeId={activeTabId} onSelect={openTab} serverOnline={serverOnline} refreshKey={inboxRefreshKey} />}
           {activity === 'comments' && <ReelsPanel activeId={selectedMediaId} onSelect={setSelectedMediaId} />}
-          {activity === 'clients' && <PlaceholderPanel icon="⭐" label="Клиенты" desc="Контакты со статусом «Клиент»" />}
-          {activity === 'stats' && <PlaceholderPanel icon="📊" label="Статистика" desc="Ответов сегодня, среднее время" />}
+          {activity === 'clients' && <PlaceholderPanel icon="⭐" label="Clients" desc="Contacts with Client status" />}
+          {activity === 'stats' && <PlaceholderPanel icon="📊" label="Stats" desc="Replies today, avg response time" />}
           {activity === 'style' && <StylePanel />}
-          {activity === 'settings' && <PlaceholderPanel icon="⚙️" label="Настройки" desc="API ключи и параметры" />}
+          {activity === 'settings' && <PlaceholderPanel icon="⚙️" label="Settings" desc="API keys and configuration" />}
         </div>
 
         <ResizeHandle onResize={resizeInbox} />

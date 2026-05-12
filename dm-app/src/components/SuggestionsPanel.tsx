@@ -2,9 +2,9 @@ import { useState, useRef, useEffect } from 'react'
 import TemplatesPanel, { loadTemplates, Template } from './TemplatesPanel'
 
 const MODELS = [
-  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', desc: 'Быстрый · умный' },
-  { id: 'claude-opus-4-7', label: 'Opus 4.7', desc: 'Мощный · дороже' },
-  { id: 'claude-haiku-4-5', label: 'Haiku 4.5', desc: 'Быстрый · дешёвый' },
+  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', desc: 'Fast · smart' },
+  { id: 'claude-opus-4-7', label: 'Opus 4.7', desc: 'Powerful · pricier' },
+  { id: 'claude-haiku-4-5', label: 'Haiku 4.5', desc: 'Fast · cheap' },
 ]
 
 const CONTEXT_LIMIT = 200000
@@ -21,7 +21,7 @@ const INITIAL_MESSAGES: Message[] = [
   {
     role: 'claude',
     type: 'text',
-    content: 'Анализирую диалог... Вот мои варианты ответа:'
+    content: 'Analyzing conversation... Here are my suggestions:'
   },
   {
     role: 'claude',
@@ -100,7 +100,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
       if (matched) setMatchHint(matched)
     }
 
-    setMessages([{ role: 'claude', type: 'text', content: 'Анализирую переписку...' }])
+    setMessages([{ role: 'claude', type: 'text', content: 'Analyzing conversation...' }])
 
     fetch('http://localhost:3001/api/claude/suggest', {
       method: 'POST',
@@ -114,11 +114,11 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
             { role: 'claude', type: 'suggestions', suggestions: data.suggestions }
           ])
         } else {
-          setMessages([{ role: 'claude', type: 'text', content: `Ошибка: ${data.error}` }])
+          setMessages([{ role: 'claude', type: 'text', content: `Error: ${data.error}` }])
         }
       })
       .catch(err => {
-        setMessages([{ role: 'claude', type: 'text', content: `Ошибка соединения: ${err.message}` }])
+        setMessages([{ role: 'claude', type: 'text', content: `Connection error: ${err.message}` }])
       })
   }, [trigger?.ts])
 
@@ -151,8 +151,8 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 text-center">
           <div style={{ fontSize: 28 }}>✦</div>
-          <p className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Открой диалог</p>
-          <p className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>Нажми «Спросить Claude» чтобы получить варианты ответа</p>
+          <p className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Open a chat</p>
+          <p className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>Click 'Ask Claude' to get reply options</p>
         </div>
       </div>
     )
@@ -188,7 +188,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
         setMessages(prev => [...prev, { role: 'claude', type: 'text', content: data.reply }])
       }
     } catch {
-      setMessages(prev => [...prev, { role: 'claude', type: 'text', content: 'Ошибка соединения с сервером' }])
+      setMessages(prev => [...prev, { role: 'claude', type: 'text', content: 'Connection error' }])
     }
   }
 
@@ -234,7 +234,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>Claude</span>
             <span className="px-1.5 py-0.5 rounded" style={{ background: 'var(--muted)', color: 'var(--accent)', fontSize: 10 }}>
-              Стиль 87%
+              Style 87%
             </span>
           </div>
           <span className="w-2 h-2 rounded-full" style={{ background: 'var(--status-client)' }} />
@@ -247,7 +247,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
             className="flex items-center gap-1.5 px-2 py-1 rounded-md w-full transition-colors"
             style={{ background: 'var(--muted)', cursor: 'pointer' }}
           >
-            <span style={{ fontSize: 10, color: 'var(--muted-foreground)' }}>Модель</span>
+            <span style={{ fontSize: 10, color: 'var(--muted-foreground)' }}>Model</span>
             <span style={{ fontSize: 11, color: 'var(--foreground)', fontWeight: 500 }}>{model.label}</span>
             <span style={{ fontSize: 10, color: 'var(--muted-foreground)', marginLeft: 'auto' }}>▾</span>
           </button>
@@ -279,7 +279,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
         {/* Context / tokens bar */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span style={{ fontSize: 10, color: 'var(--muted-foreground)' }}>Контекст</span>
+            <span style={{ fontSize: 10, color: 'var(--muted-foreground)' }}>Context</span>
             <span style={{ fontSize: 10, color: 'var(--muted-foreground)' }}>
               {(MOCK_USED / 1000).toFixed(1)}k / {(CONTEXT_LIMIT / 1000).toFixed(0)}k · {usedPct}%
             </span>
@@ -299,7 +299,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
             className="mx-3 mt-2 px-3 py-2 rounded-lg flex items-center gap-2"
             style={{ background: 'rgba(200,169,110,0.1)', border: '1px solid rgba(200,169,110,0.3)' }}
           >
-            <span style={{ fontSize: 11, color: 'var(--accent)' }}>💡 Есть похожий шаблон</span>
+            <span style={{ fontSize: 11, color: 'var(--accent)' }}>💡 Similar template found</span>
             <button
               onClick={() => { setTab('templates'); setMatchHint(null) }}
               style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--accent)', cursor: 'pointer', background: 'none', border: 'none' }}
@@ -382,7 +382,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
                             cursor: 'pointer',
                           }}
                         >
-                          {copiedIdx === j ? '✓ Скопировано' : '📋 Копировать'}
+                          {copiedIdx === j ? '✓ Copied' : '📋 Copy'}
                         </button>
                         <button
                           onClick={() => saveSuggestion(s, j)}
@@ -393,7 +393,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
                             cursor: 'pointer',
                           }}
                         >
-                          {savingIdx === j ? '✓ Сохранено' : '💾 В шаблоны'}
+                          {savingIdx === j ? '✓ Saved' : '💾 Save'}
                         </button>
                       </div>
                     </div>
@@ -433,9 +433,9 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
               .then(data => {
                 if (data.ok) {
                   onSent?.()
-                  setMessages(prev => [...prev, { role: 'claude', type: 'text', content: '✓ Отправлено в Instagram' }])
+                  setMessages(prev => [...prev, { role: 'claude', type: 'text', content: '✓ Sent to Instagram' }])
                 } else {
-                  setMessages(prev => [...prev, { role: 'claude', type: 'text', content: `❌ Ошибка: ${JSON.stringify(data.error)}` }])
+                  setMessages(prev => [...prev, { role: 'claude', type: 'text', content: `❌ Error: ${JSON.stringify(data.error)}` }])
                 }
               })
               .catch(e => {
@@ -444,7 +444,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
               .finally(() => setSending(false))
             }}
           >
-            {sending ? '⏳ Отправка...' : '✦ Подтвердить и отправить в Instagram'}
+            {sending ? '⏳ Sending...' : '✦ Confirm and send to Instagram'}
           </button>
         </div>
       )}
@@ -483,7 +483,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder="Попроси Claude переделать..."
+            placeholder="Ask Claude to revise..."
             rows={1}
             className="flex-1 resize-none bg-transparent text-xs outline-none leading-relaxed"
             style={{ color: 'var(--foreground)' }}
@@ -525,7 +525,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
           </button>
         </div>
         <p className="text-center mt-1" style={{ fontSize: 10, color: 'var(--muted-foreground)', opacity: 0.5 }}>
-          Enter — отправить · Shift+Enter — новая строка
+          Enter — send · Shift+Enter — new line
         </p>
       </div>}
     </div>

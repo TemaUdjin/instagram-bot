@@ -72,7 +72,7 @@ export default function Titlebar({ theme, onToggleTheme }: TitlebarProps) {
           e.currentTarget.style.background = 'transparent'
           e.currentTarget.style.color = 'var(--muted-foreground)'
         }}
-        title={isHack ? 'Тёмная тема' : 'Hack mode'}
+        title={isHack ? 'Dark mode' : 'Hack mode'}
       >
         {isHack ? (
           <>

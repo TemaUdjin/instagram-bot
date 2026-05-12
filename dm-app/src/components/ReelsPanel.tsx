@@ -30,11 +30,11 @@ function formatTime(iso: string) {
   const d = new Date(iso)
   const now = new Date()
   const diffH = Math.round((now.getTime() - d.getTime()) / 3600000)
-  if (diffH < 1) return 'только что'
-  if (diffH < 24) return `${diffH}ч`
+  if (diffH < 1) return 'just now'
+  if (diffH < 24) return `${diffH}h`
   const diffD = Math.floor(diffH / 24)
-  if (diffD < 7) return `${diffD}д`
-  return d.toLocaleDateString('ru', { day: 'numeric', month: 'short' })
+  if (diffD < 7) return `${diffD}d`
+  return d.toLocaleDateString('en', { day: 'numeric', month: 'short' })
 }
 
 interface ReelsPanelProps {
@@ -51,7 +51,7 @@ export default function ReelsPanel({ activeId, onSelect }: ReelsPanelProps) {
     setLoading(true)
     api.media()
       .then(data => { setMedia(data); setError(null) })
-      .catch(() => setError('Не удалось загрузить посты'))
+      .catch(() => setError('Failed to load posts'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -60,7 +60,7 @@ export default function ReelsPanel({ activeId, onSelect }: ReelsPanelProps) {
 
       {/* Header */}
       <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)' }}>
-        <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>Посты и Reels</span>
+        <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>Posts & Reels</span>
         {!loading && (
           <span className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
             {media.length}
@@ -72,7 +72,7 @@ export default function ReelsPanel({ activeId, onSelect }: ReelsPanelProps) {
       <div className="flex-1 overflow-y-auto">
         {loading && (
           <div className="flex items-center justify-center h-24">
-            <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Загрузка...</span>
+            <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Loading...</span>
           </div>
         )}
 
@@ -84,7 +84,7 @@ export default function ReelsPanel({ activeId, onSelect }: ReelsPanelProps) {
 
         {!loading && !error && media.length === 0 && (
           <div className="flex flex-col items-center justify-center h-32 gap-2">
-            <span className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>Нет постов</span>
+            <span className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>No posts</span>
           </div>
         )}
 
@@ -133,7 +133,7 @@ export default function ReelsPanel({ activeId, onSelect }: ReelsPanelProps) {
                 className="text-xs leading-relaxed line-clamp-2"
                 style={{ color: 'var(--foreground)', opacity: item.caption ? 1 : 0.35 }}
               >
-                {item.caption || 'Без подписи'}
+                {item.caption || 'No caption'}
               </p>
               <div className="flex items-center gap-1 mt-1">
                 <span style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}><CommentBubbleIcon /></span>

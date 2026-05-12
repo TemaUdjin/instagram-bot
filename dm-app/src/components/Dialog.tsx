@@ -151,7 +151,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
       <div className="flex-1 flex items-center justify-center" style={{ background: 'var(--background)' }}>
         <div className="text-center">
           <div className="text-4xl mb-3">💬</div>
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Выбери диалог слева</p>
+          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Select a chat</p>
         </div>
       </div>
     )
@@ -183,7 +183,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
                 await api.setStatus(conversationId!, next)
                 onSent?.()
               }}
-              title={isClient ? 'Убрать из клиентов' : 'Отметить как клиент'}
+              title={isClient ? 'Remove client' : 'Mark as client'}
               className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all"
               style={{
                 color: isClient ? 'var(--status-client)' : 'var(--muted-foreground)',
@@ -192,7 +192,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
                 cursor: 'pointer'
               }}
             >
-              ⭐ {isClient ? 'Клиент' : 'В клиенты'}
+              ⭐ {isClient ? 'Client' : 'Add client'}
             </button>
             <button
               onClick={() => setShowNote(n => !n)}
@@ -216,7 +216,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
         {/* Follow-up banner */}
         {followupSet && (
           <div className="mx-5 mb-2 px-3 py-1.5 rounded-lg flex items-center gap-2" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
-            <span style={{ fontSize: 11, color: '#f59e0b' }}>🔔 Follow-up через 3 дня — напомню написать</span>
+            <span style={{ fontSize: 11, color: '#f59e0b' }}>🔔 Follow-up in 3 days</span>
             <button onClick={() => setFollowupSet(false)} style={{ marginLeft: 'auto', color: '#f59e0b', fontSize: 11, cursor: 'pointer', background: 'none', border: 'none' }}>✕</button>
           </div>
         )}
@@ -273,7 +273,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
               }
             >
               <p style={{ marginBottom: 4, opacity: msg.text ? 1 : 0.5 }}>
-                {msg.text || ((msg as any).attachments?.length ? '📎 Вложение' : '🎤 Голосовое')}
+                {msg.text || ((msg as any).attachments?.length ? '📎 Attachment' : '🎤 Voice')}
               </p>
               <span style={{ fontSize: 11, color: 'var(--msg-time, var(--muted-foreground))', float: 'right', marginLeft: 8 }}>
                 {msg.time?.length > 5 ? new Date(msg.time).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }) : msg.time}
@@ -294,7 +294,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--muted)' }}
         >
           <span style={{ fontSize: 14 }}>✦</span>
-          Спросить Claude — получить варианты ответа
+          Ask Claude — get reply options
         </button>
       </div>
 
@@ -308,7 +308,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
             ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Ваш ответ..."
+            placeholder="Your reply..."
             rows={1}
             className="flex-1 resize-none bg-transparent text-sm outline-none leading-relaxed"
             style={{ color: 'var(--foreground)' }}
@@ -334,7 +334,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
             <SendIcon />
           </button>
         </div>
-        <p className="text-xs mt-1.5 text-center" style={{ color: 'var(--muted-foreground)', opacity: 0.4 }}>⌘↵ отправить</p>
+        <p className="text-xs mt-1.5 text-center" style={{ color: 'var(--muted-foreground)', opacity: 0.4 }}>⌘↵ send</p>
       </div>
     </div>
   )

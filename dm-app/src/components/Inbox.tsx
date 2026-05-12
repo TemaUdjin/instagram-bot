@@ -96,10 +96,10 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
     )
 
   const FILTERS = [
-    { id: 'all', label: 'Все' },
-    { id: 'new', label: 'Новые' },
-    { id: 'replied', label: 'Отвечено' },
-    { id: 'client', label: 'Клиенты' },
+    { id: 'all', label: 'All' },
+    { id: 'new', label: 'New' },
+    { id: 'replied', label: 'Replied' },
+    { id: 'client', label: 'Clients' },
   ] as const
 
   return (
@@ -133,9 +133,9 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
       <div className="px-4 py-2 border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>Входящие</span>
+            <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>Inbox</span>
             {!serverOnline && (
-              <span style={{ fontSize: 9, color: 'var(--accent)', background: 'var(--muted)', padding: '1px 5px', borderRadius: 4 }}>демо</span>
+              <span style={{ fontSize: 9, color: 'var(--accent)', background: 'var(--muted)', padding: '1px 5px', borderRadius: 4 }}>demo</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -154,7 +154,7 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Поиск... (⌘K)"
+            placeholder="Search... (⌘K)"
             className="flex-1 bg-transparent outline-none"
             style={{ fontSize: 11, color: 'var(--foreground)' }}
           />
@@ -165,12 +165,12 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
       <div className="flex-1 overflow-y-auto py-1">
         {loading && all.length === 0 && (
           <div className="flex flex-col items-center justify-center h-32 gap-2">
-            <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>Загрузка...</span>
+            <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>Loading...</span>
           </div>
         )}
         {!loading && filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center h-32">
-            <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>Нет активных диалогов</span>
+            <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>No active chats</span>
           </div>
         )}
         {filtered.map(conv => (
@@ -195,7 +195,7 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
                     {hoverId === conv.id && (
                       <button
                         onClick={e => { e.stopPropagation(); hideConv(conv.id) }}
-                        title="Скрыть диалог"
+                        title="Hide chat"
                         className="rounded px-1.5 py-0.5 text-xs transition-colors"
                         style={{ background: 'var(--muted)', color: 'var(--muted-foreground)', cursor: 'pointer' }}
                       >
@@ -227,7 +227,7 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
       {/* Hidden conversations panel */}
       {showHidden && hidden.size > 0 && (
         <div className="border-t" style={{ borderColor: 'var(--border)', background: 'var(--muted)' }}>
-          <div className="px-3 py-1.5 text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Скрытые</div>
+          <div className="px-3 py-1.5 text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Hidden</div>
           {all.filter(c => hidden.has(c.id)).map(conv => (
             <div key={conv.id} className="flex items-center gap-2 px-3 py-1.5">
               <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: 'var(--border)', color: 'var(--muted-foreground)' }}>
@@ -258,7 +258,7 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
               className="text-xs"
               style={{ color: 'var(--muted-foreground)', opacity: 0.6, cursor: 'pointer', background: 'none', border: 'none' }}
             >
-              {showHidden ? 'Скрыть' : `скрытые (${hidden.size})`}
+              {showHidden ? 'Hide' : `hidden (${hidden.size})`}
             </button>
           )}
           <span className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>

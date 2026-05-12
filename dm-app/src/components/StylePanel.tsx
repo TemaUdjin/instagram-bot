@@ -83,7 +83,7 @@ export default function StylePanel() {
   return (
     <div className="flex flex-col h-full border-r" style={{ borderColor: 'var(--border)', background: 'var(--background)' }}>
       <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-        <div className="text-sm font-semibold mb-0.5" style={{ color: 'var(--foreground)' }}>Скилл Claude</div>
+        <div className="text-sm font-semibold mb-0.5" style={{ color: 'var(--foreground)' }}>Claude Skill</div>
         <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
           Правила которые Claude всегда использует при генерации ответов
         </div>
@@ -112,7 +112,7 @@ export default function StylePanel() {
             cursor: 'pointer'
           }}
         >
-          {saved ? '✓ Сохранено' : 'Сохранить скилл'}
+          {saved ? '✓ Saved' : 'Save skill'}
         </button>
         <p className="text-xs text-center" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
           Claude использует этот промпт при каждом запросе

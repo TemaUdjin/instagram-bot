@@ -93,11 +93,11 @@ function formatTime(iso: string) {
   const d = new Date(iso)
   const now = new Date()
   const diffH = Math.round((now.getTime() - d.getTime()) / 3600000)
-  if (diffH < 1) return 'только что'
-  if (diffH < 24) return `${diffH}ч назад`
+  if (diffH < 1) return 'just now'
+  if (diffH < 24) return `${diffH}h ago`
   const diffD = Math.floor(diffH / 24)
-  if (diffD < 7) return `${diffD}д назад`
-  return d.toLocaleDateString('ru', { day: 'numeric', month: 'short' })
+  if (diffD < 7) return `${diffD}d ago`
+  return d.toLocaleDateString('en', { day: 'numeric', month: 'short' })
 }
 
 function Avatar({ username }: { username: string }) {
@@ -187,7 +187,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
       const data = await api.suggestCommentReply(postCaption, comment.text, comment.username)
       setSuggestions(data.suggestions || [])
     } catch {
-      setSuggestions(['Ошибка соединения с Claude'])
+      setSuggestions(['Claude connection error'])
     } finally {
       setLoadingSuggestions(false)
     }
@@ -253,7 +253,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
                 </span>
               ) : (
                 <span className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>
-                  Пользователь
+                  User
                 </span>
               )}
               <span className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
@@ -282,7 +282,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
                   style={{ color: replyOpen ? 'var(--accent)' : 'var(--muted-foreground)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
                 >
                   <ReplyIcon />
-                  Ответить
+                  Reply
                 </button>
               )}
 
@@ -294,7 +294,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
                   style={{ color: '#e05252', cursor: deleting ? 'default' : 'pointer', background: 'none', border: 'none', padding: 0, opacity: deleting ? 0.5 : 1 }}
                 >
                   <TrashIcon />
-                  {deleting ? '...' : 'Удалить'}
+                  {deleting ? '...' : 'Delete'}
                 </button>
               )}
             </div>
@@ -346,7 +346,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
                       ref={textareaRef}
                       value={replyText}
                       onChange={e => setReplyText(e.target.value)}
-                      placeholder={comment.username ? `Ответить @${comment.username}...` : 'Написать ответ...'}
+                      placeholder={comment.username ? `Reply @${comment.username}...` : 'Написать ответ...'}
                       rows={1}
                       className="flex-1 resize-none bg-transparent text-sm outline-none leading-relaxed"
                       style={{ color: 'var(--foreground)' }}
@@ -387,7 +387,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
                   }}
                 >
                   <SparkleIcon />
-                  {loadingSuggestions ? 'Думаю...' : '✦ Спросить Claude'}
+                  {loadingSuggestions ? 'Thinking...' : '✦ Ask Claude'}
                 </button>
               </div>
             )}
@@ -446,7 +446,7 @@ export default function CommentsThread({ mediaId, media }: CommentsThreadProps) 
       <div className="flex-1 flex items-center justify-center" style={{ background: 'var(--background)' }}>
         <div className="text-center">
           <div className="text-4xl mb-3">🎬</div>
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Выбери пост слева</p>
+          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Select a post</p>
         </div>
       </div>
     )
@@ -472,18 +472,18 @@ export default function CommentsThread({ mediaId, media }: CommentsThreadProps) 
           )}
           <div className="flex-1 min-w-0">
             <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--foreground)' }}>
-              {post.caption || 'Без подписи'}
+              {post.caption || 'No caption'}
             </p>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
-                {post.commentsCount} комментариев
+                {post.commentsCount} comments
               </span>
               <button
                 onClick={() => setRefreshKey(k => k + 1)}
                 className="text-xs"
                 style={{ color: 'var(--accent)', opacity: 0.7, cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
               >
-                Обновить
+                Refresh
               </button>
             </div>
           </div>
@@ -494,13 +494,13 @@ export default function CommentsThread({ mediaId, media }: CommentsThreadProps) 
       <div className="flex-1 overflow-y-auto">
         {loading && (
           <div className="flex items-center justify-center h-24">
-            <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Загрузка...</span>
+            <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Loading...</span>
           </div>
         )}
 
         {!loading && comments.length === 0 && (
           <div className="flex items-center justify-center h-32">
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>Нет комментариев</p>
+            <p className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>No comments</p>
           </div>
         )}
 

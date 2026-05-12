@@ -4,11 +4,11 @@ interface ActivityBarProps {
 }
 
 const items = [
-  { id: 'inbox', label: 'Диалоги', icon: InboxIcon },
-  { id: 'comments', label: 'Комментарии', icon: CommentsIcon },
-  { id: 'clients', label: 'Клиенты', icon: ClientsIcon },
-  { id: 'stats', label: 'Статистика', icon: StatsIcon },
-  { id: 'style', label: 'Стиль Claude', icon: StyleIcon },
+  { id: 'inbox', label: 'Chats', icon: InboxIcon },
+  { id: 'comments', label: 'Comments', icon: CommentsIcon },
+  { id: 'clients', label: 'Clients', icon: ClientsIcon },
+  { id: 'stats', label: 'Stats', icon: StatsIcon },
+  { id: 'style', label: 'Claude Style', icon: StyleIcon },
 ]
 
 function InboxIcon() {
@@ -99,7 +99,7 @@ export default function ActivityBar({ active, onSelect }: ActivityBarProps) {
       <div className="flex-1" />
       <button
         onClick={() => onSelect('settings')}
-        title="Настройки"
+        title="Settings"
         className="w-10 h-10 rounded-lg flex items-center justify-center transition-all"
         style={{
           color: active === 'settings' ? 'var(--foreground)' : 'var(--muted-foreground)',
