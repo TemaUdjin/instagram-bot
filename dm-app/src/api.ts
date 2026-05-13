@@ -61,6 +61,7 @@ async function post<T>(path: string, body: object): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   })
+  if (!res.ok) throw new Error(`API error ${res.status}`)
   return res.json()
 }
 
@@ -70,11 +71,13 @@ async function patch<T>(path: string, body: object): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   })
+  if (!res.ok) throw new Error(`API error ${res.status}`)
   return res.json()
 }
 
 async function del<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`API error ${res.status}`)
   return res.json()
 }
 
@@ -94,4 +97,6 @@ export const api = {
     post<{ ok: boolean; id?: string }>(`/media/${mediaId}/reply`, { text, commentId, username }),
   suggestCommentReply: (postCaption: string, commentText: string, username: string) =>
     post<{ suggestions: string[] }>('/claude/suggest-comment', { postCaption, commentText, username }),
+  translate: (text: string) =>
+    post<{ translation: string }>('/claude/translate', { text }),
 }

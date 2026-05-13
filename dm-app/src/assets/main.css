@@ -53,36 +53,50 @@
   --msg-username: #d4d4d4;
   --avatar-bg: #c8a96e;
   --avatar-text: #1a1610;
+  /* fallbacks — same as accent/muted in dark mode */
+  --hack-keyword: #c8a96e;
+  --hack-string: #858585;
+  --hack-type: #c8a96e;
+  --hack-number: #858585;
+  --hack-comment-color: #858585;
 }
 
 .hack {
   --person-name: #9cdcfe;
-  --claude-text: #89d4a7;
+  --claude-text: #4ec9b0;
   --background: #1e1e1e;
   --foreground: #d4d4d4;
   --muted: #252526;
   --muted-foreground: #858585;
   --border: #3e3e42;
-  --accent: #c8a96e;
-  --accent-hover: #d4b87a;
+  /* VS Code function yellow — replaces gold */
+  --accent: #dcdcaa;
+  --accent-hover: #ebebc0;
   --card: #252526;
   --card-foreground: #d4d4d4;
-  --status-new: #4ec994;
+  --status-new: #4ec9b0;
   --status-replied: #858585;
-  --status-client: #4ec994;
+  --status-client: #4ec9b0;
   --status-ignored: #4e4e52;
   --activity-bg: #181818;
   --tabbar-bg: #181818;
 
-  /* Message bubbles — refined */
+  /* Message bubbles */
   --msg-outgoing-bg: #1c1c1c;
   --msg-incoming-bg: #252526;
   --msg-incoming-color: #d4d4d4;
   --msg-outgoing-color: #c8c8c8;
   --msg-time: #6a9955;
   --msg-username: #9cdcfe;
-  --avatar-bg: #c8a96e;
-  --avatar-text: #1a1610;
+  --avatar-bg: #569cd6;
+  --avatar-text: #1e1e1e;
+
+  /* VS Code semantic palette */
+  --hack-keyword: #569cd6;     /* blue  — keywords, panel headers    */
+  --hack-string:  #ce9178;     /* orange — strings, translations      */
+  --hack-type:    #4ec9b0;     /* teal  — types, own-reply accent     */
+  --hack-number:  #b5cea8;     /* sage  — numbers, suggestion indices */
+  --hack-comment-color: #6a9955; /* green — code comments, meta text  */
 }
 
 .hack body {

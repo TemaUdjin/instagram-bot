@@ -25,6 +25,15 @@ function SendIcon() {
   )
 }
 
+function TranslateIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/>
+      <path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/>
+    </svg>
+  )
+}
+
 function TrashIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -38,6 +47,25 @@ function SparkleIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none">
       <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+    </svg>
+  )
+}
+
+function MicIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
     </svg>
   )
 }
@@ -126,14 +154,14 @@ interface CommentRowProps {
   mediaId: string
   postCaption: string
   isReply?: boolean
+  replyToCommentId?: string  // parent comment ID when this is a nested reply
   onDeleted?: (id: string) => void
   onReplySent?: (commentId: string, reply: LocalReply) => void
+  onOpenClaude?: (comment: Comment) => void
+  prefillText?: string
 }
 
-function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReplySent }: CommentRowProps) {
-  const [liked, setLiked] = useState(comment.liked ?? false)
-  const [likeCount, setLikeCount] = useState(comment.likeCount)
-  const [likingInProgress, setLikingInProgress] = useState(false)
+function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, onDeleted, onReplySent, onOpenClaude, prefillText }: CommentRowProps) {
   const [replyOpen, setReplyOpen] = useState(false)
   const [replyText, setReplyText] = useState('')
   const [sending, setSending] = useState(false)
@@ -142,30 +170,24 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
   const [deleting, setDeleting] = useState(false)
   const [deleted, setDeleted] = useState(false)
   const [showEmoji, setShowEmoji] = useState(false)
+  const [translation, setTranslation] = useState<string | null>(null)
+  const [translating, setTranslating] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isOwn = comment.username === OWN_USERNAME
+
+  // When Claude panel sends a suggestion, pre-fill reply box
+  useEffect(() => {
+    if (prefillText) {
+      setReplyText(prefillText)
+      setReplyOpen(true)
+      setTimeout(() => textareaRef.current?.focus(), 50)
+    }
+  }, [prefillText])
 
   const allReplies = [
     ...(comment.replies || []),
     ...(comment.localReplies || []),
   ]
-
-  const handleLike = async () => {
-    if (likingInProgress) return
-    setLikingInProgress(true)
-    const wasLiked = liked
-    setLiked(!wasLiked)
-    setLikeCount(c => wasLiked ? c - 1 : c + 1)
-    try {
-      if (wasLiked) await api.unlikeComment(comment.id)
-      else await api.likeComment(comment.id)
-    } catch {
-      setLiked(wasLiked)
-      setLikeCount(c => wasLiked ? c + 1 : c - 1)
-    } finally {
-      setLikingInProgress(false)
-    }
-  }
 
   const insertEmoji = useCallback((emoji: string) => {
     const el = textareaRef.current
@@ -196,15 +218,20 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
   const handleSend = async (text: string) => {
     if (!text.trim() || sending) return
     setSending(true)
+    // For nested replies: send to parent thread, @mention this reply's author
+    const targetId = replyToCommentId || comment.id
+    const finalText = isReply && comment.username && !text.startsWith(`@${comment.username}`)
+      ? `@${comment.username} ${text.trim()}`
+      : text.trim()
     try {
-      const result = await api.replyToComment(mediaId, text.trim(), comment.id, comment.username || undefined)
+      const result = await api.replyToComment(mediaId, finalText, targetId, undefined)
       const newReply: LocalReply = {
         id: result.id || `local_${Date.now()}`,
-        text: comment.username ? `@${comment.username} ${text.trim()}` : text.trim(),
+        text: finalText,
         username: OWN_USERNAME,
         timestamp: new Date().toISOString(),
       }
-      onReplySent?.(comment.id, newReply)
+      onReplySent?.(targetId, newReply)
       setReplyText('')
       setSuggestions([])
       setReplyOpen(false)
@@ -227,6 +254,19 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
     }
   }
 
+  const handleTranslate = async () => {
+    if (translation !== null) { setTranslation(null); return }
+    setTranslating(true)
+    try {
+      const data = await api.translate(comment.text)
+      setTranslation(data.translation)
+    } catch {
+      setTranslation('Translation error')
+    } finally {
+      setTranslating(false)
+    }
+  }
+
   if (deleted) return null
 
   return (
@@ -242,21 +282,40 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
           opacity: 0.5,
         }} />
       )}
-      <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)', position: 'relative' }}>
+      <div
+        className="px-4 py-3"
+        style={{
+          borderBottom: '1px solid var(--border)',
+          position: 'relative',
+          ...(isOwn ? {
+            borderLeft: '2px solid var(--hack-type)',
+            background: 'rgba(78, 201, 176, 0.04)',
+            paddingLeft: 14,
+          } : {}),
+        }}
+      >
         <div className="flex gap-3">
           <Avatar username={comment.username} />
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-2 mb-1">
               {comment.username ? (
-                <span className="text-xs font-semibold" style={{ color: 'var(--foreground)' }}>
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: isOwn ? 'var(--hack-type)' : 'var(--msg-username, var(--foreground))' }}
+                >
                   @{comment.username}
+                  {isOwn && (
+                    <span style={{ color: 'var(--hack-comment-color, var(--muted-foreground))', fontWeight: 400, marginLeft: 4 }}>
+                      [you]
+                    </span>
+                  )}
                 </span>
               ) : (
                 <span className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>
                   User
                 </span>
               )}
-              <span className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
+              <span className="text-xs" style={{ color: 'var(--msg-time, var(--muted-foreground))' }}>
                 {formatTime(comment.timestamp)}
               </span>
             </div>
@@ -264,18 +323,49 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
               {comment.text}
             </p>
 
+            {/* Inline translation */}
+            {translation !== null && (
+              <p
+                className="text-xs leading-relaxed"
+                style={{
+                  color: 'var(--hack-string, var(--muted-foreground))',
+                  borderLeft: '2px solid var(--hack-string, var(--border))',
+                  paddingLeft: 8,
+                  marginTop: 6,
+                  fontStyle: 'italic',
+                  opacity: 0.85,
+                }}
+              >
+                {translation}
+              </p>
+            )}
+
             {/* Actions */}
             <div className="flex items-center gap-3 mt-2">
-              <button
-                onClick={handleLike}
-                className="flex items-center gap-1 transition-all"
-                style={{ color: liked ? '#e05252' : 'var(--muted-foreground)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
-              >
-                <HeartIcon filled={liked} />
-                {likeCount > 0 && <span className="text-xs">{likeCount}</span>}
-              </button>
+              {comment.likeCount > 0 && (
+                <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                  <HeartIcon filled={false} />
+                  {comment.likeCount}
+                </span>
+              )}
 
-              {!isReply && (
+              {!isOwn && (
+                <button
+                  onClick={handleTranslate}
+                  className="flex items-center gap-1 text-xs transition-all"
+                  style={{
+                    color: translation !== null ? 'var(--hack-string, var(--accent))' : 'var(--muted-foreground)',
+                    cursor: translating ? 'default' : 'pointer',
+                    background: 'none', border: 'none', padding: 0,
+                    opacity: translating ? 0.5 : 1,
+                  }}
+                >
+                  <TranslateIcon />
+                  {translating ? '...' : translation !== null ? 'hide' : 'translate'}
+                </button>
+              )}
+
+              {!isOwn && (
                 <button
                   onClick={() => { setReplyOpen(o => !o); setSuggestions([]) }}
                   className="flex items-center gap-1 text-xs transition-all"
@@ -283,6 +373,18 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
                 >
                   <ReplyIcon />
                   Reply
+                </button>
+              )}
+
+              {!isReply && !isOwn && onOpenClaude && (
+                <button
+                  onClick={() => onOpenClaude(comment)}
+                  className="flex items-center gap-1 text-xs transition-all"
+                  style={{ color: 'var(--muted-foreground)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                  title="Open Claude panel for this comment"
+                >
+                  <SparkleIcon />
+                  claude
                 </button>
               )}
 
@@ -302,6 +404,25 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
             {/* Reply box */}
             {replyOpen && (
               <div className="mt-3 flex flex-col gap-2">
+                {/* Mini-quote for nested replies */}
+                {isReply && comment.username && (
+                  <div
+                    style={{
+                      padding: '4px 8px',
+                      borderLeft: '2px solid var(--hack-string, var(--border))',
+                      background: 'rgba(206, 145, 120, 0.06)',
+                      borderRadius: '0 3px 3px 0',
+                    }}
+                  >
+                    <span style={{ fontSize: 10, color: 'var(--hack-string, var(--muted-foreground))', fontWeight: 600 }}>
+                      ↩ @{comment.username}
+                    </span>
+                    <p style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 2, lineHeight: 1.4 }}>
+                      {comment.text.length > 80 ? comment.text.slice(0, 80) + '…' : comment.text}
+                    </p>
+                  </div>
+                )}
+
                 {suggestions.length > 0 && (
                   <div className="flex flex-col gap-1.5">
                     {suggestions.map((s, i) => (
@@ -404,9 +525,297 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
             mediaId={mediaId}
             postCaption={postCaption}
             isReply
+            replyToCommentId={comment.id}
             onDeleted={onDeleted}
+            onReplySent={onReplySent}
           />
         ))}
+      </div>
+    </div>
+  )
+}
+
+// Claude side panel for comments
+interface ClaudePanelProps {
+  target: Comment | null
+  postCaption: string
+  onClose: () => void
+  onUseSuggestion: (text: string, commentId: string) => void
+}
+
+function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: ClaudePanelProps) {
+  const [input, setInput] = useState('')
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [suggestionTranslations, setSuggestionTranslations] = useState<string[]>([])
+  const [loading, setLoading] = useState(false)
+  const [listening, setListening] = useState(false)
+  const [usedIndex, setUsedIndex] = useState<number | null>(null)
+  const [contextTranslation, setContextTranslation] = useState<string | null>(null)
+  const [translatingContext, setTranslatingContext] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-translate context comment when target changes
+  useEffect(() => {
+    setSuggestions([])
+    setSuggestionTranslations([])
+    setUsedIndex(null)
+    setInput('')
+    setContextTranslation(null)
+    if (!target?.text) return
+    setTranslatingContext(true)
+    api.translate(target.text)
+      .then(d => setContextTranslation(d.translation))
+      .catch(() => setContextTranslation(null))
+      .finally(() => setTranslatingContext(false))
+  }, [target?.id])
+
+  const handleGenerate = async () => {
+    if (!target) return
+    setLoading(true)
+    setSuggestions([])
+    setSuggestionTranslations([])
+    setUsedIndex(null)
+    try {
+      const commentWithContext = input.trim()
+        ? `${target.text}\n\n[My rough idea: ${input.trim()}]`
+        : target.text
+      const data = await api.suggestCommentReply(postCaption, commentWithContext, target.username)
+      const suggs = data.suggestions || []
+      setSuggestions(suggs)
+      // Translate all suggestions in parallel
+      Promise.all(suggs.map(s => api.translate(s).then(d => d.translation).catch(() => '')))
+        .then(translations => setSuggestionTranslations(translations))
+    } catch {
+      setSuggestions(['Connection error'])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const startVoice = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) {
+      alert('Voice input not available in this browser')
+      return
+    }
+    if (listening) {
+      recognitionRef.current?.stop()
+      return
+    }
+    const rec = new SR()
+    rec.lang = 'ru-RU'
+    rec.continuous = false
+    rec.interimResults = false
+    rec.onstart = () => setListening(true)
+    rec.onend = () => setListening(false)
+    rec.onerror = () => setListening(false)
+    rec.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript
+      setInput(prev => prev ? `${prev} ${transcript}` : transcript)
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
+    rec.start()
+    recognitionRef.current = rec
+  }
+
+  const handleUse = (text: string, idx: number) => {
+    if (!target) return
+    setUsedIndex(idx)
+    onUseSuggestion(text, target.id)
+  }
+
+  return (
+    <div
+      style={{
+        width: 260,
+        minWidth: 260,
+        borderLeft: '1px solid var(--border)',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        background: 'var(--card)',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          padding: '8px 12px',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ color: 'var(--hack-keyword, var(--accent))', fontSize: 11, fontWeight: 600, letterSpacing: '0.02em' }}>
+          ✦ claude --comments
+        </span>
+        <button
+          onClick={onClose}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', padding: 2, display: 'flex' }}
+        >
+          <CloseIcon />
+        </button>
+      </div>
+
+      {/* Target comment context */}
+      <div
+        style={{
+          padding: '8px 12px',
+          borderBottom: '1px solid var(--border)',
+          flexShrink: 0,
+          minHeight: 54,
+        }}
+      >
+        {target ? (
+          <>
+            <div style={{ fontSize: 10, color: 'var(--hack-comment-color, var(--muted-foreground))', marginBottom: 3, letterSpacing: '0.05em' }}>
+              // context
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--foreground)', opacity: 0.8, lineHeight: 1.4 }}>
+              <span style={{ color: 'var(--accent)', opacity: 0.7 }}>@{target.username}</span>
+              {' '}
+              {target.text.length > 90 ? target.text.slice(0, 90) + '…' : target.text}
+            </div>
+            {(translatingContext || contextTranslation) && (
+              <div style={{ fontSize: 10, color: 'var(--hack-string, var(--muted-foreground))', marginTop: 4, fontStyle: 'italic', lineHeight: 1.4 }}>
+                {translatingContext ? '...' : contextTranslation}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ fontSize: 11, color: 'var(--muted-foreground)', opacity: 0.5 }}>
+            // click ✦ claude on a comment
+          </div>
+        )}
+      </div>
+
+      {/* Input area */}
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ fontSize: 10, color: 'var(--hack-comment-color, var(--muted-foreground))', marginBottom: 6, letterSpacing: '0.05em' }}>
+          // your take (optional)
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 6,
+            padding: '6px 8px',
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            background: 'var(--muted)',
+          }}
+        >
+          <span style={{ color: 'var(--accent)', fontSize: 12, lineHeight: '18px', flexShrink: 0, opacity: 0.7 }}>{'>'}</span>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder="rough idea, tone, anything..."
+            rows={2}
+            style={{
+              flex: 1,
+              background: 'none',
+              border: 'none',
+              outline: 'none',
+              resize: 'none',
+              fontSize: 11,
+              color: 'var(--foreground)',
+              fontFamily: 'inherit',
+              lineHeight: 1.5,
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && e.metaKey) { e.preventDefault(); handleGenerate() }
+            }}
+          />
+          <button
+            onClick={startVoice}
+            title={listening ? 'Stop recording' : 'Voice input'}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: listening ? '#e05252' : 'var(--muted-foreground)',
+              padding: 2,
+              display: 'flex',
+              flexShrink: 0,
+              animation: listening ? 'terminal-blink 1s step-end infinite' : 'none',
+            }}
+          >
+            <MicIcon active={listening} />
+          </button>
+        </div>
+      </div>
+
+      {/* Generate button */}
+      <div style={{ padding: '8px 12px', flexShrink: 0 }}>
+        <button
+          onClick={handleGenerate}
+          disabled={loading || !target}
+          style={{
+            width: '100%',
+            padding: '6px 0',
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            cursor: loading || !target ? 'default' : 'pointer',
+            color: loading || !target ? 'var(--muted-foreground)' : 'var(--accent)',
+            fontSize: 11,
+            fontFamily: 'inherit',
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            transition: 'border-color 0.15s',
+          }}
+          onMouseEnter={e => { if (!loading && target) (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)' }}
+        >
+          {loading ? '[ thinking... ]' : '[ generate ]'}
+        </button>
+      </div>
+
+      {/* Suggestions */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 12px' }}>
+        {suggestions.length > 0 && (
+          <div style={{ fontSize: 10, color: 'var(--hack-comment-color, var(--muted-foreground))', marginBottom: 8, letterSpacing: '0.05em' }}>
+            // suggestions
+          </div>
+        )}
+        {suggestions.map((s, i) => (
+          <div
+            key={i}
+            style={{
+              marginBottom: 8,
+              padding: '8px 10px',
+              border: usedIndex === i ? '1px solid var(--accent)' : '1px solid var(--border)',
+              borderRadius: 4,
+              background: usedIndex === i ? 'rgba(200, 169, 110, 0.08)' : 'var(--muted)',
+              cursor: 'pointer',
+              transition: 'border-color 0.15s',
+            }}
+            onMouseEnter={e => { if (usedIndex !== i) (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--muted-foreground)' }}
+            onMouseLeave={e => { if (usedIndex !== i) (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)' }}
+            onClick={() => handleUse(s, i)}
+          >
+            <div style={{ fontSize: 10, color: usedIndex === i ? 'var(--hack-type, var(--accent))' : 'var(--hack-number, var(--muted-foreground))', marginBottom: 4, fontWeight: 600 }}>
+              {usedIndex === i ? '✓ used' : `_${i + 1}`}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--foreground)', lineHeight: 1.5 }}>{s}</div>
+            {suggestionTranslations[i] && (
+              <div style={{ fontSize: 10, color: 'var(--hack-string, var(--muted-foreground))', marginTop: 4, fontStyle: 'italic', lineHeight: 1.4, borderTop: '1px solid var(--border)', paddingTop: 4 }}>
+                {suggestionTranslations[i]}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+              thinking<span className="terminal-cursor" />
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -418,9 +827,12 @@ interface CommentsThreadProps {
 }
 
 export default function CommentsThread({ mediaId, media }: CommentsThreadProps) {
-  const [comments, setComments] = useState<(Comment & { localReplies?: { id: string; text: string; username: string; timestamp: string }[] })[]>([])
+  const [comments, setComments] = useState<(Comment & { localReplies?: LocalReply[] })[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [claudeOpen, setClaudeOpen] = useState(false)
+  const [claudeTarget, setClaudeTarget] = useState<Comment | null>(null)
+  const [prefillFor, setPrefillFor] = useState<{ commentId: string; text: string; ts: number } | null>(null)
 
   const post = media.find(m => m.id === mediaId) || null
 
@@ -433,12 +845,22 @@ export default function CommentsThread({ mediaId, media }: CommentsThreadProps) 
       .finally(() => setLoading(false))
   }, [mediaId, refreshKey])
 
-  const handleReplySent = (commentId: string, reply: { id: string; text: string; username: string; timestamp: string }) => {
+  const handleReplySent = (commentId: string, reply: LocalReply) => {
     setComments(prev => prev.map(c =>
       c.id === commentId
         ? { ...c, localReplies: [...(c.localReplies || []), reply] }
         : c
     ))
+  }
+
+  const handleOpenClaude = (comment: Comment) => {
+    setClaudeTarget(comment)
+    setClaudeOpen(true)
+  }
+
+  const handleUseSuggestion = (text: string, commentId: string) => {
+    setPrefillFor({ commentId, text, ts: Date.now() })
+    setClaudeOpen(false)
   }
 
   if (!mediaId) {
@@ -474,7 +896,7 @@ export default function CommentsThread({ mediaId, media }: CommentsThreadProps) 
             <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--foreground)' }}>
               {post.caption || 'No caption'}
             </p>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-3 mt-1">
               <span className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
                 {post.commentsCount} comments
               </span>
@@ -485,35 +907,66 @@ export default function CommentsThread({ mediaId, media }: CommentsThreadProps) 
               >
                 Refresh
               </button>
+              <button
+                onClick={() => setClaudeOpen(o => !o)}
+                className="flex items-center gap-1 text-xs"
+                style={{
+                  color: claudeOpen ? 'var(--accent)' : 'var(--muted-foreground)',
+                  cursor: 'pointer',
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  fontWeight: claudeOpen ? 600 : 400,
+                }}
+              >
+                <SparkleIcon />
+                {claudeOpen ? 'hide claude' : 'claude'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Comments */}
-      <div className="flex-1 overflow-y-auto">
-        {loading && (
-          <div className="flex items-center justify-center h-24">
-            <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Loading...</span>
-          </div>
-        )}
+      {/* Comments + Claude panel */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
 
-        {!loading && comments.length === 0 && (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>No comments</p>
-          </div>
-        )}
+        {/* Comments scroll */}
+        <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
+          {loading && (
+            <div className="flex items-center justify-center h-24">
+              <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Loading...</span>
+            </div>
+          )}
 
-        {!loading && comments.map(comment => (
-          <CommentRow
-            key={comment.id}
-            comment={comment}
-            mediaId={mediaId}
+          {!loading && comments.length === 0 && (
+            <div className="flex items-center justify-center h-32">
+              <p className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>No comments</p>
+            </div>
+          )}
+
+          {!loading && comments.map(comment => (
+            <CommentRow
+              key={comment.id}
+              comment={comment}
+              mediaId={mediaId}
+              postCaption={post?.caption || ''}
+              onDeleted={(id) => setComments(prev => prev.filter(c => c.id !== id))}
+              onReplySent={handleReplySent}
+              onOpenClaude={handleOpenClaude}
+              prefillText={prefillFor?.commentId === comment.id ? prefillFor.text : undefined}
+            />
+          ))}
+        </div>
+
+        {/* Claude panel */}
+        {claudeOpen && (
+          <CommentsClaudePanel
+            target={claudeTarget}
             postCaption={post?.caption || ''}
-            onDeleted={(id) => setComments(prev => prev.filter(c => c.id !== id))}
-            onReplySent={handleReplySent}
+            onClose={() => setClaudeOpen(false)}
+            onUseSuggestion={handleUseSuggestion}
           />
-        ))}
+        )}
       </div>
     </div>
   )

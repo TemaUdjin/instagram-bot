@@ -741,7 +741,9 @@ app.post('/api/comments/:id/like', async (req, res) => {
     })
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: err.response?.data || err.message })
+    const errData = err.response?.data || err.message
+    console.error('like error:', JSON.stringify(errData))
+    res.status(500).json({ error: errData })
   }
 })
 
@@ -753,7 +755,9 @@ app.delete('/api/comments/:id/like', async (req, res) => {
     })
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: err.response?.data || err.message })
+    const errData = err.response?.data || err.message
+    console.error('unlike error:', JSON.stringify(errData))
+    res.status(500).json({ error: errData })
   }
 })
 
@@ -815,6 +819,25 @@ Generate 3 reply options for Yujin to reply to an Instagram comment. Rules:
     const text = response.content[0].text.trim()
     const suggestions = extractSuggestions(text)
     res.json({ suggestions: suggestions || [text] })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /api/claude/translate
+app.post('/api/claude/translate', async (req, res) => {
+  const { text } = req.body
+  if (!text?.trim()) return res.json({ translation: '' })
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 256,
+      messages: [{
+        role: 'user',
+        content: `Translate the following text to Russian. Reply with the translation only, no explanations or quotes:\n\n${text}`
+      }]
+    })
+    res.json({ translation: response.content[0].text.trim() })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
