@@ -23,7 +23,9 @@ function PlaceholderPanel({ icon, label, desc }: { icon: string; label: string; 
 }
 
 export default function App() {
-  const [theme, setTheme] = useState<'dark' | 'hack'>('dark')
+  const [theme, setTheme] = useState<'dark' | 'hack'>(
+    () => (localStorage.getItem('tp_theme') as 'dark' | 'hack') || 'hack'
+  )
   const [activity, setActivity] = useState('inbox')
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
@@ -128,7 +130,11 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--background)' }}>
-      <Titlebar theme={theme} onToggleTheme={() => setTheme(t => t === 'dark' ? 'hack' : 'dark')} />
+      <Titlebar theme={theme} onToggleTheme={() => setTheme(t => {
+        const next = t === 'dark' ? 'hack' : 'dark'
+        localStorage.setItem('tp_theme', next)
+        return next
+      })} />
 
       <div className="flex flex-1 overflow-hidden">
         <ActivityBar active={activity} onSelect={setActivity} />
