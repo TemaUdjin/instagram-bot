@@ -328,8 +328,8 @@ function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, 
               <p
                 className="text-xs leading-relaxed"
                 style={{
-                  color: 'var(--hack-string, var(--muted-foreground))',
-                  borderLeft: '2px solid var(--hack-string, var(--border))',
+                  color: 'var(--hack-comment-color, var(--muted-foreground))',
+                  borderLeft: '2px solid var(--hack-comment-color, var(--border))',
                   paddingLeft: 8,
                   marginTop: 6,
                   fontStyle: 'italic',
@@ -354,7 +354,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, 
                   onClick={handleTranslate}
                   className="flex items-center gap-1 text-xs transition-all"
                   style={{
-                    color: translation !== null ? 'var(--hack-string, var(--accent))' : 'var(--muted-foreground)',
+                    color: translation !== null ? 'var(--hack-comment-color, var(--accent))' : 'var(--muted-foreground)',
                     cursor: translating ? 'default' : 'pointer',
                     background: 'none', border: 'none', padding: 0,
                     opacity: translating ? 0.5 : 1,
@@ -409,12 +409,12 @@ function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, 
                   <div
                     style={{
                       padding: '4px 8px',
-                      borderLeft: '2px solid var(--hack-string, var(--border))',
+                      borderLeft: '2px solid var(--hack-comment-color, var(--border))',
                       background: 'rgba(206, 145, 120, 0.06)',
                       borderRadius: '0 3px 3px 0',
                     }}
                   >
-                    <span style={{ fontSize: 10, color: 'var(--hack-string, var(--muted-foreground))', fontWeight: 600 }}>
+                    <span style={{ fontSize: 10, color: 'var(--hack-comment-color, var(--muted-foreground))', fontWeight: 600 }}>
                       ↩ @{comment.username}
                     </span>
                     <p style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 2, lineHeight: 1.4 }}>
@@ -648,7 +648,7 @@ function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: 
           flexShrink: 0,
         }}
       >
-        <span style={{ color: 'var(--hack-keyword, var(--accent))', fontSize: 11, fontWeight: 600, letterSpacing: '0.02em' }}>
+        <span style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 600, letterSpacing: '0.02em' }}>
           ✦ claude --comments
         </span>
         <button
@@ -679,7 +679,7 @@ function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: 
               {target.text.length > 90 ? target.text.slice(0, 90) + '…' : target.text}
             </div>
             {(translatingContext || contextTranslation) && (
-              <div style={{ fontSize: 10, color: 'var(--hack-string, var(--muted-foreground))', marginTop: 4, fontStyle: 'italic', lineHeight: 1.4 }}>
+              <div style={{ fontSize: 10, color: 'var(--hack-comment-color, var(--muted-foreground))', marginTop: 4, fontStyle: 'italic', lineHeight: 1.4 }}>
                 {translatingContext ? '...' : contextTranslation}
               </div>
             )}
@@ -782,30 +782,29 @@ function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: 
           </div>
         )}
         {suggestions.map((s, i) => (
-          <div
-            key={i}
-            style={{
-              marginBottom: 8,
-              padding: '8px 10px',
-              border: usedIndex === i ? '1px solid var(--accent)' : '1px solid var(--border)',
-              borderRadius: 4,
-              background: usedIndex === i ? 'rgba(200, 169, 110, 0.08)' : 'var(--muted)',
-              cursor: 'pointer',
-              transition: 'border-color 0.15s',
-            }}
-            onMouseEnter={e => { if (usedIndex !== i) (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--muted-foreground)' }}
-            onMouseLeave={e => { if (usedIndex !== i) (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)' }}
-            onClick={() => handleUse(s, i)}
-          >
-            <div style={{ fontSize: 10, color: usedIndex === i ? 'var(--hack-type, var(--accent))' : 'var(--hack-number, var(--muted-foreground))', marginBottom: 4, fontWeight: 600 }}>
-              {usedIndex === i ? '✓ used' : `_${i + 1}`}
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--foreground)', lineHeight: 1.5 }}>{s}</div>
-            {suggestionTranslations[i] && (
-              <div style={{ fontSize: 10, color: 'var(--hack-string, var(--muted-foreground))', marginTop: 4, fontStyle: 'italic', lineHeight: 1.4, borderTop: '1px solid var(--border)', paddingTop: 4 }}>
-                {suggestionTranslations[i]}
+          <div key={i} className="flex flex-col gap-1" style={{ marginBottom: 6 }}>
+            <button
+              onClick={() => handleUse(s, i)}
+              className="text-left text-xs leading-relaxed px-3 py-2.5 rounded-xl w-full transition-all"
+              style={{
+                background: usedIndex === i ? 'var(--card)' : 'var(--muted)',
+                color: 'var(--foreground)',
+                border: usedIndex === i ? '1px solid var(--accent)' : '1px solid var(--border)',
+                cursor: 'pointer',
+              }}
+            >
+              <div className="flex gap-2">
+                <span style={{ color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>
+                  {usedIndex === i ? '✓' : i + 1}
+                </span>
+                <span style={{ color: 'var(--claude-text, var(--foreground))' }}>{s}</span>
               </div>
-            )}
+              {suggestionTranslations[i] && (
+                <div style={{ fontSize: 10, color: 'var(--hack-comment-color, var(--muted-foreground))', marginTop: 4, fontStyle: 'italic', lineHeight: 1.4, borderTop: '1px solid var(--border)', paddingTop: 4, paddingLeft: 18 }}>
+                  {suggestionTranslations[i]}
+                </div>
+              )}
+            </button>
           </div>
         ))}
 
