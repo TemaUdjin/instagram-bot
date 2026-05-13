@@ -499,10 +499,21 @@ function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: 
   const [loading, setLoading] = useState(false)
   const [listening, setListening] = useState(false)
   const [usedIndex, setUsedIndex] = useState<number | null>(null)
+  const [showEmoji, setShowEmoji] = useState(false)
   const [contextTranslation, setContextTranslation] = useState<string | null>(null)
   const [translatingContext, setTranslatingContext] = useState(false)
   const recognitionRef = useRef<any>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  const insertEmoji = useCallback((emoji: string) => {
+    const el = inputRef.current
+    if (!el) { setInput(t => t + emoji); return }
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const newText = input.slice(0, start) + emoji + input.slice(end)
+    setInput(newText)
+    setTimeout(() => { el.focus(); el.setSelectionRange(start + emoji.length, start + emoji.length) }, 0)
+  }, [input])
 
   // Reset when target changes — no auto-translate
   useEffect(() => {
@@ -712,6 +723,12 @@ function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: 
             onKeyDown={e => {
               if (e.key === 'Enter' && e.metaKey) { e.preventDefault(); handleGenerate() }
             }}
+          />
+          <EmojiButton
+            show={showEmoji}
+            onToggle={() => setShowEmoji(v => !v)}
+            onClose={() => setShowEmoji(false)}
+            onSelect={insertEmoji}
           />
           <button
             onClick={startVoice}
