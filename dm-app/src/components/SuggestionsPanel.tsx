@@ -368,7 +368,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
                       >
                         <div className="flex gap-2">
                           <span style={{ color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>{j + 1}</span>
-                          <span>{s}</span>
+                          <span style={{ color: 'var(--claude-text, var(--foreground))' }}>{s}</span>
                         </div>
                       </button>
                       {/* Copy + Save to templates */}
