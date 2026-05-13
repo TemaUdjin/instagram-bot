@@ -13,10 +13,11 @@ export interface Comment {
   id: string
   text: string
   username: string
+  isOwn?: boolean
   timestamp: string
   likeCount: number
   liked?: boolean
-  replies: { id: string; text: string; username: string; timestamp: string }[]
+  replies: { id: string; text: string; username: string; isOwn?: boolean; timestamp: string }[]
 }
 
 export interface ConversationSummary {

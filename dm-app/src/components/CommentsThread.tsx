@@ -129,7 +129,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, 
   const [translation, setTranslation] = useState<string | null>(null)
   const [translating, setTranslating] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const isOwn = comment.username === OWN_USERNAME
+  const isOwn = comment.isOwn || comment.username === OWN_USERNAME
 
   // When Claude panel sends a suggestion, pre-fill reply box
   useEffect(() => {

@@ -144,11 +144,13 @@ async function sendMessage(recipientId, text) {
 // ─── Resolve own ID ──────────────────────────────────────────────
 
 let selfId = null
+let selfUsername = null
 async function resolveSelfId() {
   try {
     const data = await igGet(`${BUSINESS_ID}`, { fields: 'id,username' })
     selfId = data.id
-    console.log(`✅ Connected as: @${data.username} (${selfId})`)
+    selfUsername = data.username
+    console.log(`✅ Connected as: @${selfUsername} (${selfId})`)
   } catch (err) {
     console.error('❌ Cannot resolve Instagram ID:', err.response?.data || err.message)
   }
@@ -716,12 +718,14 @@ app.get('/api/media/:id/comments', async (req, res) => {
         id: c.id,
         text: c.text || '',
         username: c.username || '',
+        isOwn: !!(selfUsername && c.username === selfUsername),
         timestamp: c.timestamp,
         likeCount: c.like_count || 0,
         replies: (c.replies?.data || []).map(r => ({
           id: r.id,
           text: r.text || '',
           username: r.username || '',
+          isOwn: !!(selfUsername && r.username === selfUsername),
           timestamp: r.timestamp
         }))
       }))

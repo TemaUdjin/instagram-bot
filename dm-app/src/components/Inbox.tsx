@@ -35,15 +35,16 @@ interface InboxProps {
   onSelect: (id: string) => void
   serverOnline: boolean
   refreshKey?: number
+  defaultFilter?: 'all' | 'new' | 'replied' | 'client'
 }
 
 const HIDDEN_KEY = 'tp_hidden_convs'
 
-export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: InboxProps) {
+export default function Inbox({ activeId, onSelect, serverOnline, refreshKey, defaultFilter = 'all' }: InboxProps) {
   const [all, setAll] = useState<ConversationSummary[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'new' | 'replied' | 'client'>('all')
+  const [filter, setFilter] = useState<'all' | 'new' | 'replied' | 'client'>(defaultFilter)
   const [hidden, setHidden] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')))
   const [showHidden, setShowHidden] = useState(false)
   const [hoverId, setHoverId] = useState<string | null>(null)

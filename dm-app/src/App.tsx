@@ -137,7 +137,7 @@ export default function App() {
         <div style={{ width: inboxWidth, minWidth: inboxWidth, maxWidth: inboxWidth }}>
           {activity === 'inbox' && <Inbox activeId={activeTabId} onSelect={openTab} serverOnline={serverOnline} refreshKey={inboxRefreshKey} />}
           {activity === 'comments' && <ReelsPanel activeId={selectedMediaId} onSelect={setSelectedMediaId} />}
-          {activity === 'clients' && <PlaceholderPanel icon="⭐" label="Clients" desc="Contacts with Client status" />}
+          {activity === 'clients' && <Inbox activeId={activeTabId} onSelect={openTab} serverOnline={serverOnline} refreshKey={inboxRefreshKey} defaultFilter="client" />}
           {activity === 'stats' && <PlaceholderPanel icon="📊" label="Stats" desc="Replies today, avg response time" />}
           {activity === 'style' && <StylePanel />}
           {activity === 'settings' && <PlaceholderPanel icon="⚙️" label="Settings" desc="API keys and configuration" />}
