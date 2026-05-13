@@ -1,14 +1,29 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { api, Comment, MediaItem } from '../api'
 import EmojiButton from './EmojiButton'
+import CommentsClaudePanel from './CommentsClaudePanel'
 
 const OWN_USERNAME = 'temayujin'
 const FETCH_DELAY_MS = 350
 const OWN_IDS_KEY = 'tp_own_comment_ids'
+const HIDDEN_KEY = 'tp_hidden_unreplied'
 
 function loadOwnIds(): Set<string> {
   try { return new Set(JSON.parse(localStorage.getItem(OWN_IDS_KEY) || '[]')) }
   catch { return new Set() }
+}
+
+function loadHiddenIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')) }
+  catch { return new Set() }
+}
+
+function persistHideId(id: string) {
+  try {
+    const ids = loadHiddenIds()
+    ids.add(id)
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...ids]))
+  } catch {}
 }
 
 interface IgRate { used: number; limit: number; minutesLeft: number }
@@ -90,9 +105,11 @@ interface CommentItemProps {
   item: UnrepliedComment
   onReplied: (commentId: string) => void
   onHide: (commentId: string) => void
+  onOpenClaude: (comment: Comment, post: MediaItem) => void
+  prefillText?: string
 }
 
-function CommentItem({ item, onReplied, onHide }: CommentItemProps) {
+function CommentItem({ item, onReplied, onHide, onOpenClaude, prefillText }: CommentItemProps) {
   const { comment, post, replied } = item
   const [replyText, setReplyText] = useState('')
   const [replyOpen, setReplyOpen] = useState(false)
@@ -100,6 +117,11 @@ function CommentItem({ item, onReplied, onHide }: CommentItemProps) {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showEmoji, setShowEmoji] = useState(false)
+
+  // Prefill from Claude panel
+  useEffect(() => {
+    if (prefillText) { setReplyText(prefillText); setReplyOpen(true) }
+  }, [prefillText])
 
   const insertEmoji = useCallback((emoji: string) => {
     setReplyText(t => t + emoji)
@@ -177,7 +199,7 @@ function CommentItem({ item, onReplied, onHide }: CommentItemProps) {
                 <ReplyIcon /> reply
               </button>
               <button
-                onClick={() => { setReplyOpen(true); handleAskClaude() }}
+                onClick={() => onOpenClaude(comment, post)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
               >
                 <SparkleIcon /> claude
@@ -272,6 +294,9 @@ export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelP
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(cacheLoaded)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
+  const [claudeOpen, setClaudeOpen] = useState(false)
+  const [claudeTarget, setClaudeTarget] = useState<{ comment: Comment; post: MediaItem } | null>(null)
+  const [prefillFor, setPrefillFor] = useState<{ commentId: string; text: string } | null>(null)
 
   const isBlocked = igRate && (igRate.used / igRate.limit) >= 0.7
 
@@ -283,6 +308,7 @@ export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelP
     setItems([])
 
     const ownIds = loadOwnIds()
+    const hiddenIds = loadHiddenIds()
 
     try {
       const media = await api.media()
@@ -296,8 +322,8 @@ export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelP
         try {
           const comments = await api.comments(post.id)
           for (const c of comments) {
-            // Skip own top-level comments
-            if (c.isOwn || c.username === OWN_USERNAME || ownIds.has(c.id)) continue
+            // Skip own or previously hidden comments
+            if (c.isOwn || c.username === OWN_USERNAME || ownIds.has(c.id) || hiddenIds.has(c.id)) continue
             // Check if any reply is from us (username, isOwn flag, or localStorage ID)
             const hasOwnReply = c.replies.some(
               r => r.isOwn || r.username === OWN_USERNAME || ownIds.has(r.id)
@@ -334,11 +360,22 @@ export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelP
   }
 
   const handleHide = (commentId: string) => {
+    persistHideId(commentId)
     setItems(prev => {
       const next = prev.filter(i => i.comment.id !== commentId)
       cachedItems = next
       return next
     })
+  }
+
+  const handleOpenClaude = (comment: Comment, post: MediaItem) => {
+    setClaudeTarget({ comment, post })
+    setClaudeOpen(true)
+  }
+
+  const handleUseSuggestion = (text: string, commentId: string) => {
+    setPrefillFor({ commentId, text })
+    setClaudeOpen(false)
   }
 
   const unrepliedCount = items.filter(i => !i.replied).length
@@ -354,7 +391,9 @@ export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelP
     }, {} as Record<string, { post: MediaItem; comments: UnrepliedComment[] }>)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--background)' }}>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--background)' }}>
+    {/* Feed */}
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
       {/* Header */}
       <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -432,11 +471,29 @@ export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelP
             </button>
 
             {comments.map(item => (
-              <CommentItem key={item.comment.id} item={item} onReplied={handleReplied} onHide={handleHide} />
+              <CommentItem
+                key={item.comment.id}
+                item={item}
+                onReplied={handleReplied}
+                onHide={handleHide}
+                onOpenClaude={handleOpenClaude}
+                prefillText={prefillFor?.commentId === item.comment.id ? prefillFor.text : undefined}
+              />
             ))}
           </div>
         ))}
       </div>
+    </div>
+
+    {/* Claude panel */}
+    {claudeOpen && (
+      <CommentsClaudePanel
+        target={claudeTarget?.comment ?? null}
+        postCaption={claudeTarget?.post.caption || ''}
+        onClose={() => setClaudeOpen(false)}
+        onUseSuggestion={handleUseSuggestion}
+      />
+    )}
     </div>
   )
 }
