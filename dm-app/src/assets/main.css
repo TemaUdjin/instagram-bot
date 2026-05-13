@@ -74,9 +74,9 @@
   --accent-hover: #ebebc0;
   --card: #252526;
   --card-foreground: #d4d4d4;
-  --status-new: #4ec9b0;
+  --status-new: #89d4a7;
   --status-replied: #858585;
-  --status-client: #4ec9b0;
+  --status-client: #89d4a7;
   --status-ignored: #4e4e52;
   --activity-bg: #181818;
   --tabbar-bg: #181818;
@@ -94,7 +94,7 @@
   /* VS Code semantic palette */
   --hack-keyword: #569cd6;     /* blue  — keywords, panel headers    */
   --hack-string:  #ce9178;     /* orange — strings, translations      */
-  --hack-type:    #4ec9b0;     /* teal  — types, own-reply accent     */
+  --hack-type:    #89d4a7;     /* mint  — types, own-reply accent     */
   --hack-number:  #b5cea8;     /* sage  — numbers, suggestion indices */
   --hack-comment-color: #6a9955; /* green — code comments, meta text  */
 }
