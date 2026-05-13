@@ -192,7 +192,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
                 cursor: 'pointer'
               }}
             >
-              ⭐ {isClient ? 'Client' : 'Add client'}
+              {isClient ? '[ client ]' : '+ client'}
             </button>
             <button
               onClick={() => setShowNote(n => !n)}

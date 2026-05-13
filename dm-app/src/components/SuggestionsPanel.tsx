@@ -61,6 +61,8 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
   const [savingIdx, setSavingIdx] = useState<number | null>(null)
   const [matchHint, setMatchHint] = useState<Template | null>(null)
   const [sending, setSending] = useState(false)
+  const [suggestionTranslations, setSuggestionTranslations] = useState<Record<string, string | null>>({})
+  const [translatingKey, setTranslatingKey] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const usedPct = Math.round((MOCK_USED / CONTEXT_LIMIT) * 100)
@@ -76,7 +78,29 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
     setMessages([])
     setMatchHint(null)
     setSending(false)
+    setSuggestionTranslations({})
   }, [conversationId])
+
+  const handleTranslateSuggestion = async (text: string) => {
+    if (suggestionTranslations[text] !== undefined) {
+      setSuggestionTranslations(prev => { const n = { ...prev }; delete n[text]; return n })
+      return
+    }
+    setTranslatingKey(text)
+    try {
+      const res = await fetch('http://localhost:3001/api/claude/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      })
+      const data = await res.json()
+      setSuggestionTranslations(prev => ({ ...prev, [text]: data.translation || null }))
+    } catch {
+      // ignore
+    } finally {
+      setTranslatingKey(null)
+    }
+  }
 
   // React to "Ask Claude" button — call real API
   useEffect(() => {
@@ -217,7 +241,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
             background: 'transparent', cursor: 'pointer',
           }}
         >
-          📌 Templates
+          // templates
         </button>
       </div>
 
@@ -297,14 +321,14 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
         {matchHint && (
           <div
             className="mx-3 mt-2 px-3 py-2 rounded-lg flex items-center gap-2"
-            style={{ background: 'rgba(200,169,110,0.1)', border: '1px solid rgba(200,169,110,0.3)' }}
+            style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}
           >
-            <span style={{ fontSize: 11, color: 'var(--accent)' }}>💡 Similar template found</span>
+            <span style={{ fontSize: 10, color: 'var(--hack-comment-color, var(--muted-foreground))', fontFamily: 'inherit' }}>// similar template found</span>
             <button
               onClick={() => { setTab('templates'); setMatchHint(null) }}
               style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--accent)', cursor: 'pointer', background: 'none', border: 'none' }}
             >
-              View →
+              view →
             </button>
             <button
               onClick={() => setMatchHint(null)}
@@ -370,9 +394,26 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
                           <span style={{ color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>{j + 1}</span>
                           <span style={{ color: 'var(--claude-text, var(--foreground))' }}>{s}</span>
                         </div>
+                        {suggestionTranslations[s] && (
+                          <div style={{ fontSize: 10, color: 'var(--status-client)', marginTop: 4, fontStyle: 'italic', lineHeight: 1.4, borderTop: '1px solid var(--border)', paddingTop: 4, paddingLeft: 18 }}>
+                            {suggestionTranslations[s]}
+                          </div>
+                        )}
                       </button>
-                      {/* Copy + Save to templates */}
+                      {/* Actions: translate / copy / save */}
                       <div className="flex gap-1.5 px-1">
+                        <button
+                          onClick={() => handleTranslateSuggestion(s)}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs transition-all"
+                          style={{
+                            background: 'transparent',
+                            color: suggestionTranslations[s] ? 'var(--status-client)' : translatingKey === s ? 'var(--muted-foreground)' : 'var(--muted-foreground)',
+                            cursor: translatingKey === s ? 'default' : 'pointer',
+                            opacity: translatingKey === s ? 0.5 : 1,
+                          }}
+                        >
+                          {translatingKey === s ? '...' : suggestionTranslations[s] ? '✓ translated' : 'translate'}
+                        </button>
                         <button
                           onClick={() => copySuggestion(s, j)}
                           className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs transition-all"
@@ -382,7 +423,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
                             cursor: 'pointer',
                           }}
                         >
-                          {copiedIdx === j ? '✓ Copied' : '📋 Copy'}
+                          {copiedIdx === j ? '✓ copied' : 'copy'}
                         </button>
                         <button
                           onClick={() => saveSuggestion(s, j)}
@@ -393,7 +434,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
                             cursor: 'pointer',
                           }}
                         >
-                          {savingIdx === j ? '✓ Saved' : '💾 Save'}
+                          {savingIdx === j ? '✓ saved' : 'save'}
                         </button>
                       </div>
                     </div>
