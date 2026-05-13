@@ -56,6 +56,7 @@
 }
 
 .hack {
+  --person-name: #9cdcfe;
   --background: #1e1e1e;
   --foreground: #d4d4d4;
   --muted: #252526;

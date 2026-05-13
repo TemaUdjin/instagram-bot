@@ -52,7 +52,7 @@ export default function TabBar({ tabs, activeId, onSelect, onClose }: TabBarProp
           >
             <span
               className="text-xs font-medium"
-              style={{ color: isActive ? 'var(--foreground)' : 'var(--muted-foreground)' }}
+              style={{ color: isActive ? 'var(--person-name, var(--foreground))' : 'var(--muted-foreground)' }}
             >
               {tab.name}
             </span>
