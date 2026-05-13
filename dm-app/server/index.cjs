@@ -609,11 +609,14 @@ app.post('/api/claude/skill', (req, res) => {
 
 // POST /api/claude/chat — live chat with Claude about the conversation
 app.post('/api/claude/chat', async (req, res) => {
-  const { chatHistory, igMessages, username } = req.body
+  const { chatHistory, igMessages, username, rawContext, model } = req.body
+  const ALLOWED = ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-4-7']
+  const useModel = ALLOWED.includes(model) ? model : 'claude-sonnet-4-6'
 
-  const igContext = (igMessages || []).slice(-20)
-    .map(m => `${m.type === 'outgoing' ? 'Yujin' : (username || 'Client')}: ${m.text || '[attachment]'}`)
-    .join('\n')
+  const igContext = rawContext ||
+    (igMessages || []).slice(-20)
+      .map(m => `${m.type === 'outgoing' ? 'Yujin' : (username || 'Client')}: ${m.text || '[attachment]'}`)
+      .join('\n')
 
   const systemPrompt = `${skillPrompt}
 
@@ -626,20 +629,24 @@ HOW TO RESPOND:
 - Explain briefly WHY each option works if it helps
 - If Yujin asks to revise: do it immediately and precisely
 - If Yujin asks a question: answer conversationally in plain text
-- Always English, never dashes`
+
+LANGUAGE — ABSOLUTE RULE: Always respond in English. Even if Yujin writes in Russian or any other language, your response must be in English only. No exceptions.
+
+PUNCTUATION — ABSOLUTE RULE: Never use em-dashes (—) or en-dashes (–) anywhere. Use a comma or period instead.`
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: useModel,
       max_tokens: 1024,
       system: systemPrompt,
       messages: chatHistory.map(m => ({ role: m.role, content: m.content }))
     })
 
     const text = response.content[0].text.trim()
+    const tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0)
     const suggestions = extractSuggestions(text)
-    if (suggestions) return res.json({ suggestions })
-    res.json({ reply: text })
+    if (suggestions) return res.json({ suggestions, tokensUsed })
+    res.json({ reply: text, tokensUsed })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -847,15 +854,17 @@ Generate 3 reply options for Yujin to reply to an Instagram comment. Rules:
 
 // POST /api/claude/suggest-text — browser extension: accepts raw conversation text
 app.post('/api/claude/suggest-text', async (req, res) => {
-  const { text } = req.body
+  const { text, model: reqModel } = req.body
   if (!text?.trim()) return res.status(400).json({ error: 'No text provided' })
+  const ALLOWED_M = ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-4-7']
+  const useModel2 = ALLOWED_M.includes(reqModel) ? reqModel : 'claude-sonnet-4-6'
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: useModel2,
       max_tokens: 1024,
-      system: `${skillPrompt}\n\nGenerate 3 reply options for Yujin. Rules:\n- All options must be in English\n- No dashes at the start\n- Return ONLY a valid JSON array, no markdown, no code blocks:\n["option 1", "option 2", "option 3"]`,
-      messages: [{ role: 'user', content: `Here is the conversation:\n\n${text}\n\nSuggest 3 reply options for the last client message.` }]
+      system: `${skillPrompt}\n\n===\nOUTPUT FORMAT — ABSOLUTE RULES, NO EXCEPTIONS:\n1. Write ONLY in English. The conversation may be in any language — your reply options must always be English.\n2. NEVER use em-dashes (—) or en-dashes (–) anywhere in your response. Replace with a comma or period.\n3. Short and natural, not corporate.\n4. Return ONLY a raw JSON array on one line, no markdown, no explanation:\n["option 1", "option 2", "option 3"]`,
+      messages: [{ role: 'user', content: `Conversation:\n\n${text}\n\nGenerate 3 reply options in English for Yujin to send.` }]
     })
     const raw = response.content[0].text.trim()
     const suggestions = extractSuggestions(raw) || raw.split('\n').filter(l => l.trim()).slice(0, 3)
