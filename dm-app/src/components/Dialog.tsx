@@ -1,6 +1,45 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { SendIcon } from './Icons'
 import { api, ConversationDetail } from '../api'
+
+const DM_EMOJIS = ['🫡','😌','🙃','😄','🤝🏼','💪🏼','🙏🏼','😁','😅','⚡️','🔥','🤍','🩶','💛']
+
+function DmEmojiPicker({ onSelect, onClose }: { onSelect: (e: string) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+  return (
+    <div
+      ref={ref}
+      className="absolute bottom-full mb-2 left-0 z-50 flex flex-wrap p-2 rounded-lg"
+      style={{
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+        gap: 4,
+        width: 216,
+      }}
+    >
+      {DM_EMOJIS.map(emoji => (
+        <button
+          key={emoji}
+          onClick={() => { onSelect(emoji); onClose() }}
+          className="flex items-center justify-center rounded transition-all"
+          style={{ width: 28, height: 28, fontSize: 16, background: 'none', border: 'none', cursor: 'pointer' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--muted)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 function ClientIcon() {
   return (
@@ -51,8 +90,22 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
   const [detail, setDetail] = useState<ConversationDetail | null>(null)
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showEmoji, setShowEmoji] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const insertEmoji = useCallback((emoji: string) => {
+    const el = textareaRef.current
+    if (!el) { setText(t => t + emoji); return }
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const newText = text.slice(0, start) + emoji + text.slice(end)
+    setText(newText)
+    setTimeout(() => {
+      el.focus()
+      el.setSelectionRange(start + emoji.length, start + emoji.length)
+    }, 0)
+  }, [text])
 
   useEffect(() => {
     setText('')
@@ -302,8 +355,27 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
       <div className="px-4 py-2" style={{ borderColor: 'var(--border)' }}>
         <div
           className="flex items-end gap-2 px-4 py-3 rounded-xl"
-          style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}
+          style={{ background: 'var(--muted)', border: '1px solid var(--border)', position: 'relative' }}
         >
+          {showEmoji && (
+            <DmEmojiPicker
+              onSelect={insertEmoji}
+              onClose={() => setShowEmoji(false)}
+            />
+          )}
+          <button
+            onClick={() => setShowEmoji(v => !v)}
+            className="shrink-0 transition-all"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              color: showEmoji ? 'var(--accent)' : 'var(--muted-foreground)',
+              fontSize: 12, fontFamily: 'inherit', fontWeight: 600, lineHeight: 1,
+              letterSpacing: '-0.5px',
+            }}
+            title="Emoji"
+          >
+            =)
+          </button>
           <textarea
             ref={textareaRef}
             value={text}
