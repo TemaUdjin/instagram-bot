@@ -907,8 +907,11 @@ export default function CommentsThread({ mediaId, media }: CommentsThreadProps) 
     return (
       <div className="flex-1 flex items-center justify-center" style={{ background: 'var(--background)' }}>
         <div className="text-center">
-          <div className="text-4xl mb-3">🎬</div>
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Select a post</p>
+          <svg width="80" height="80" viewBox="0 0 80 80" fill="none" style={{ opacity: 0.5, marginBottom: 16 }}>
+            <circle cx="40" cy="40" r="37" stroke="var(--accent)" strokeWidth="1.5"/>
+            <polygon points="40,15 62,53 18,53" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinejoin="round"/>
+          </svg>
+          <span style={{ fontSize: 11, color: 'var(--hack-comment-color, var(--muted-foreground))' }}>// select a post</span>
         </div>
       </div>
     )
