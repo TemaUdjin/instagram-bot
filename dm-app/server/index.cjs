@@ -845,6 +845,27 @@ Generate 3 reply options for Yujin to reply to an Instagram comment. Rules:
   }
 })
 
+// POST /api/claude/suggest-text — browser extension: accepts raw conversation text
+app.post('/api/claude/suggest-text', async (req, res) => {
+  const { text } = req.body
+  if (!text?.trim()) return res.status(400).json({ error: 'No text provided' })
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: `${skillPrompt}\n\nGenerate 3 reply options for Yujin. Rules:\n- All options must be in English\n- No dashes at the start\n- Return ONLY a valid JSON array, no markdown, no code blocks:\n["option 1", "option 2", "option 3"]`,
+      messages: [{ role: 'user', content: `Here is the conversation:\n\n${text}\n\nSuggest 3 reply options for the last client message.` }]
+    })
+    const raw = response.content[0].text.trim()
+    const suggestions = extractSuggestions(raw) || raw.split('\n').filter(l => l.trim()).slice(0, 3)
+    res.json({ suggestions })
+  } catch (err) {
+    console.error('suggest-text error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // POST /api/claude/translate
 app.post('/api/claude/translate', async (req, res) => {
   const { text } = req.body
