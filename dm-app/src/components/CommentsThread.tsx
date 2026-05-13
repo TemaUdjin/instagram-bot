@@ -72,6 +72,22 @@ function CloseIcon() {
 }
 
 const OWN_USERNAME = 'temayujin'
+const OWN_IDS_KEY = 'tp_own_comment_ids'
+
+function loadOwnIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(OWN_IDS_KEY) || '[]')) }
+  catch { return new Set() }
+}
+
+function saveOwnId(id: string) {
+  try {
+    const ids = loadOwnIds()
+    ids.add(id)
+    // keep last 500 to avoid unbounded growth
+    const arr = [...ids].slice(-500)
+    localStorage.setItem(OWN_IDS_KEY, JSON.stringify(arr))
+  } catch {}
+}
 
 function formatTime(iso: string) {
   const d = new Date(iso)
@@ -110,14 +126,16 @@ interface CommentRowProps {
   mediaId: string
   postCaption: string
   isReply?: boolean
-  replyToCommentId?: string  // parent comment ID when this is a nested reply
+  replyToCommentId?: string
   onDeleted?: (id: string) => void
   onReplySent?: (commentId: string, reply: LocalReply) => void
   onOpenClaude?: (comment: Comment) => void
   prefillText?: string
+  ownIds: Set<string>
+  onSaveOwnId: (id: string) => void
 }
 
-function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, onDeleted, onReplySent, onOpenClaude, prefillText }: CommentRowProps) {
+function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, onDeleted, onReplySent, onOpenClaude, prefillText, ownIds, onSaveOwnId }: CommentRowProps) {
   const [replyOpen, setReplyOpen] = useState(false)
   const [replyText, setReplyText] = useState('')
   const [sending, setSending] = useState(false)
@@ -129,7 +147,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, 
   const [translation, setTranslation] = useState<string | null>(null)
   const [translating, setTranslating] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const isOwn = comment.isOwn || comment.username === OWN_USERNAME
+  const isOwn = comment.isOwn || comment.username === OWN_USERNAME || ownIds.has(comment.id)
 
   // When Claude panel sends a suggestion, pre-fill reply box
   useEffect(() => {
@@ -181,8 +199,10 @@ function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, 
       : text.trim()
     try {
       const result = await api.replyToComment(mediaId, finalText, targetId, undefined)
+      const replyId = result.id || `local_${Date.now()}`
+      onSaveOwnId(replyId)
       const newReply: LocalReply = {
-        id: result.id || `local_${Date.now()}`,
+        id: replyId,
         text: finalText,
         username: OWN_USERNAME,
         timestamp: new Date().toISOString(),
@@ -476,6 +496,8 @@ function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, 
             replyToCommentId={comment.id}
             onDeleted={onDeleted}
             onReplySent={onReplySent}
+            ownIds={ownIds}
+            onSaveOwnId={onSaveOwnId}
           />
         ))}
       </div>
@@ -845,6 +867,12 @@ export default function CommentsThread({ mediaId, media }: CommentsThreadProps) 
   const [claudeOpen, setClaudeOpen] = useState(false)
   const [claudeTarget, setClaudeTarget] = useState<Comment | null>(null)
   const [prefillFor, setPrefillFor] = useState<{ commentId: string; text: string; ts: number } | null>(null)
+  const [ownIds, setOwnIds] = useState<Set<string>>(() => loadOwnIds())
+
+  const handleSaveOwnId = useCallback((id: string) => {
+    saveOwnId(id)
+    setOwnIds(prev => new Set([...prev, id]))
+  }, [])
 
   const post = media.find(m => m.id === mediaId) || null
 
@@ -966,6 +994,8 @@ export default function CommentsThread({ mediaId, media }: CommentsThreadProps) 
               onReplySent={handleReplySent}
               onOpenClaude={handleOpenClaude}
               prefillText={prefillFor?.commentId === comment.id ? prefillFor.text : undefined}
+              ownIds={ownIds}
+              onSaveOwnId={handleSaveOwnId}
             />
           ))}
         </div>
