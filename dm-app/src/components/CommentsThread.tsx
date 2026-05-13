@@ -410,7 +410,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, 
                     style={{
                       padding: '4px 8px',
                       borderLeft: '2px solid var(--hack-comment-color, var(--border))',
-                      background: 'rgba(206, 145, 120, 0.06)',
+                      background: 'var(--muted)',
                       borderRadius: '0 3px 3px 0',
                     }}
                   >
@@ -546,7 +546,8 @@ interface ClaudePanelProps {
 function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: ClaudePanelProps) {
   const [input, setInput] = useState('')
   const [suggestions, setSuggestions] = useState<string[]>([])
-  const [suggestionTranslations, setSuggestionTranslations] = useState<string[]>([])
+  const [suggestionTranslations, setSuggestionTranslations] = useState<(string | null)[]>([])
+  const [translatingIdx, setTranslatingIdx] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [listening, setListening] = useState(false)
   const [usedIndex, setUsedIndex] = useState<number | null>(null)
@@ -555,20 +556,44 @@ function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: 
   const recognitionRef = useRef<any>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  // Auto-translate context comment when target changes
+  // Reset when target changes — no auto-translate
   useEffect(() => {
     setSuggestions([])
     setSuggestionTranslations([])
     setUsedIndex(null)
     setInput('')
     setContextTranslation(null)
+  }, [target?.id])
+
+  const handleTranslateContext = async () => {
+    if (contextTranslation !== null) { setContextTranslation(null); return }
     if (!target?.text) return
     setTranslatingContext(true)
-    api.translate(target.text)
-      .then(d => setContextTranslation(d.translation))
-      .catch(() => setContextTranslation(null))
-      .finally(() => setTranslatingContext(false))
-  }, [target?.id])
+    try {
+      const d = await api.translate(target.text)
+      setContextTranslation(d.translation)
+    } catch {
+      setContextTranslation(null)
+    } finally {
+      setTranslatingContext(false)
+    }
+  }
+
+  const handleTranslateSuggestion = async (idx: number) => {
+    if (suggestionTranslations[idx] !== null && suggestionTranslations[idx] !== undefined) {
+      setSuggestionTranslations(prev => { const n = [...prev]; n[idx] = null; return n })
+      return
+    }
+    setTranslatingIdx(idx)
+    try {
+      const d = await api.translate(suggestions[idx])
+      setSuggestionTranslations(prev => { const n = [...prev]; n[idx] = d.translation; return n })
+    } catch {
+      // ignore
+    } finally {
+      setTranslatingIdx(null)
+    }
+  }
 
   const handleGenerate = async () => {
     if (!target) return
@@ -583,9 +608,7 @@ function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: 
       const data = await api.suggestCommentReply(postCaption, commentWithContext, target.username)
       const suggs = data.suggestions || []
       setSuggestions(suggs)
-      // Translate all suggestions in parallel
-      Promise.all(suggs.map(s => api.translate(s).then(d => d.translation).catch(() => '')))
-        .then(translations => setSuggestionTranslations(translations))
+      setSuggestionTranslations(new Array(suggs.length).fill(null))
     } catch {
       setSuggestions(['Connection error'])
     } finally {
@@ -678,11 +701,24 @@ function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: 
               {' '}
               {target.text.length > 90 ? target.text.slice(0, 90) + '…' : target.text}
             </div>
-            {(translatingContext || contextTranslation) && (
+            {contextTranslation && (
               <div style={{ fontSize: 10, color: 'var(--hack-comment-color, var(--muted-foreground))', marginTop: 4, fontStyle: 'italic', lineHeight: 1.4 }}>
-                {translatingContext ? '...' : contextTranslation}
+                {contextTranslation}
               </div>
             )}
+            <button
+              onClick={handleTranslateContext}
+              style={{
+                marginTop: 4,
+                background: 'none', border: 'none', padding: 0, cursor: translatingContext ? 'default' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 3,
+                fontSize: 10, color: contextTranslation ? 'var(--hack-comment-color, var(--accent))' : 'var(--muted-foreground)',
+                opacity: translatingContext ? 0.5 : 1,
+              }}
+            >
+              <TranslateIcon />
+              {translatingContext ? '...' : contextTranslation ? 'hide' : 'translate'}
+            </button>
           </>
         ) : (
           <div style={{ fontSize: 11, color: 'var(--muted-foreground)', opacity: 0.5 }}>
@@ -804,6 +840,18 @@ function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: 
                   {suggestionTranslations[i]}
                 </div>
               )}
+            </button>
+            <button
+              onClick={() => handleTranslateSuggestion(i)}
+              style={{
+                background: 'none', border: 'none', padding: '0 4px', cursor: translatingIdx === i ? 'default' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 3,
+                fontSize: 10, color: suggestionTranslations[i] ? 'var(--hack-comment-color, var(--accent))' : 'var(--muted-foreground)',
+                opacity: translatingIdx === i ? 0.5 : 1, alignSelf: 'flex-start',
+              }}
+            >
+              <TranslateIcon />
+              {translatingIdx === i ? '...' : suggestionTranslations[i] ? 'hide' : 'translate'}
             </button>
           </div>
         ))}
