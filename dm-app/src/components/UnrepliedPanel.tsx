@@ -39,6 +39,14 @@ interface UnrepliedComment {
 let cachedItems: UnrepliedComment[] = []
 let cacheLoaded = false
 
+function saveOwnId(id: string) {
+  try {
+    const ids = loadOwnIds()
+    ids.add(id)
+    localStorage.setItem(OWN_IDS_KEY, JSON.stringify([...ids].slice(-500)))
+  } catch {}
+}
+
 function RateBar({ rate }: { rate: IgRate | null }) {
   if (!rate) return null
   const pct = Math.min(100, Math.round((rate.used / rate.limit) * 100))
@@ -131,7 +139,8 @@ function CommentItem({ item, onReplied, onHide, onOpenClaude, prefillText }: Com
     if (!replyText.trim() || sending) return
     setSending(true)
     try {
-      await api.replyToComment(post.id, replyText.trim(), comment.id, comment.username || undefined)
+      const result = await api.replyToComment(post.id, replyText.trim(), comment.id, comment.username || undefined)
+      if (result.id) saveOwnId(result.id)
       onReplied(comment.id)
       setReplyOpen(false)
     } catch {
