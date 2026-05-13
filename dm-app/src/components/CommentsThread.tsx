@@ -271,15 +271,15 @@ function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, 
         }}
       >
         <div className="flex gap-3">
-          <Avatar username={comment.username} />
+          <Avatar username={isOwn ? OWN_USERNAME : comment.username} />
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-2 mb-1">
-              {comment.username ? (
+              {(comment.username || isOwn) ? (
                 <span
                   className="text-xs font-semibold"
                   style={{ color: isOwn ? 'var(--hack-type)' : 'var(--msg-username, var(--foreground))' }}
                 >
-                  @{comment.username}
+                  @{isOwn ? OWN_USERNAME : comment.username}
                   {isOwn && (
                     <span style={{ color: 'var(--hack-comment-color, var(--muted-foreground))', fontWeight: 400, marginLeft: 4 }}>
                       [you]
