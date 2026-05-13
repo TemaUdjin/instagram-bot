@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 
 export const DM_EMOJIS = ['🫡','😌','🙃','😄','🤝🏼','💪🏼','🙏🏼','😁','😅','⚡️','🔥','🤍','🩶','💛']
 
-function EmojiPicker({ onSelect, onClose }: { onSelect: (e: string) => void; onClose: () => void }) {
+function EmojiPicker({ onSelect, onClose, alignRight }: { onSelect: (e: string) => void; onClose: () => void; alignRight?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -16,13 +16,14 @@ function EmojiPicker({ onSelect, onClose }: { onSelect: (e: string) => void; onC
   return (
     <div
       ref={ref}
-      className="absolute bottom-full mb-2 left-0 z-50 flex flex-wrap p-2 rounded-lg"
+      className="absolute bottom-full mb-2 z-50 flex flex-wrap p-2 rounded-lg"
       style={{
         background: 'var(--card)',
         border: '1px solid var(--border)',
         boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
         gap: 4,
         width: 216,
+        ...(alignRight ? { right: 0 } : { left: 0 }),
       }}
     >
       {DM_EMOJIS.map(emoji => (
@@ -46,12 +47,13 @@ interface EmojiButtonProps {
   onToggle: () => void
   onClose: () => void
   onSelect: (emoji: string) => void
+  alignRight?: boolean
 }
 
-export default function EmojiButton({ show, onToggle, onClose, onSelect }: EmojiButtonProps) {
+export default function EmojiButton({ show, onToggle, onClose, onSelect, alignRight }: EmojiButtonProps) {
   return (
     <div style={{ position: 'relative', flexShrink: 0 }}>
-      {show && <EmojiPicker onSelect={onSelect} onClose={onClose} />}
+      {show && <EmojiPicker onSelect={onSelect} onClose={onClose} alignRight={alignRight} />}
       <button
         onClick={onToggle}
         style={{

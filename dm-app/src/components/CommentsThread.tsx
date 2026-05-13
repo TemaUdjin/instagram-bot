@@ -751,6 +751,7 @@ function CommentsClaudePanel({ target, postCaption, onClose, onUseSuggestion }: 
             onToggle={() => setShowEmoji(v => !v)}
             onClose={() => setShowEmoji(false)}
             onSelect={insertEmoji}
+            alignRight
           />
           <button
             onClick={startVoice}
