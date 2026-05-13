@@ -395,7 +395,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
                           <span style={{ color: 'var(--claude-text, var(--foreground))' }}>{s}</span>
                         </div>
                         {suggestionTranslations[s] && (
-                          <div style={{ fontSize: 10, color: 'var(--status-client)', marginTop: 4, fontStyle: 'italic', lineHeight: 1.4, borderTop: '1px solid var(--border)', paddingTop: 4, paddingLeft: 18 }}>
+                          <div style={{ fontSize: 10, color: 'var(--hack-comment-color, var(--muted-foreground))', marginTop: 4, fontStyle: 'italic', lineHeight: 1.4, borderTop: '1px solid var(--border)', paddingTop: 4, paddingLeft: 18 }}>
                             {suggestionTranslations[s]}
                           </div>
                         )}
@@ -407,7 +407,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
                           className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs transition-all"
                           style={{
                             background: 'transparent',
-                            color: suggestionTranslations[s] ? 'var(--status-client)' : translatingKey === s ? 'var(--muted-foreground)' : 'var(--muted-foreground)',
+                            color: suggestionTranslations[s] ? 'var(--hack-comment-color, var(--muted-foreground))' : 'var(--muted-foreground)',
                             cursor: translatingKey === s ? 'default' : 'pointer',
                             opacity: translatingKey === s ? 0.5 : 1,
                           }}
