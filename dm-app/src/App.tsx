@@ -45,6 +45,7 @@ export default function App() {
   const [mediaList, setMediaList] = useState<MediaItem[]>([])
 
   const isCommentsMode = activity === 'comments'
+  const isUnrepliedMode = activity === 'unreplied'
 
   useEffect(() => {
     api.health()
@@ -141,22 +142,26 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <ActivityBar active={activity} onSelect={setActivity} />
 
-        {/* Left panel */}
-        <div style={{ width: inboxWidth, minWidth: inboxWidth, maxWidth: inboxWidth }}>
-          {activity === 'inbox' && <Inbox activeId={activeTabId} onSelect={openTab} serverOnline={serverOnline} refreshKey={inboxRefreshKey} />}
-          {activity === 'comments' && <ReelsPanel activeId={selectedMediaId} onSelect={setSelectedMediaId} />}
-          {activity === 'unreplied' && <UnrepliedPanel igRate={igRate} onSelectPost={(id) => { setSelectedMediaId(id); setActivity('comments') }} />}
-          {activity === 'clients' && <Inbox activeId={activeTabId} onSelect={openTab} serverOnline={serverOnline} refreshKey={inboxRefreshKey} defaultFilter="client" />}
-          {activity === 'stats' && <PlaceholderPanel icon="📊" label="Stats" desc="Replies today, avg response time" />}
-          {activity === 'style' && <StylePanel />}
-          {activity === 'settings' && <PlaceholderPanel icon="⚙️" label="Settings" desc="API keys and configuration" />}
-        </div>
-
-        <ResizeHandle onResize={resizeInbox} />
+        {/* Left panel — hidden in unreplied mode */}
+        {!isUnrepliedMode && (
+          <>
+            <div style={{ width: inboxWidth, minWidth: inboxWidth, maxWidth: inboxWidth }}>
+              {activity === 'inbox' && <Inbox activeId={activeTabId} onSelect={openTab} serverOnline={serverOnline} refreshKey={inboxRefreshKey} />}
+              {activity === 'comments' && <ReelsPanel activeId={selectedMediaId} onSelect={setSelectedMediaId} />}
+              {activity === 'clients' && <Inbox activeId={activeTabId} onSelect={openTab} serverOnline={serverOnline} refreshKey={inboxRefreshKey} defaultFilter="client" />}
+              {activity === 'stats' && <PlaceholderPanel icon="📊" label="Stats" desc="Replies today, avg response time" />}
+              {activity === 'style' && <StylePanel />}
+              {activity === 'settings' && <PlaceholderPanel icon="⚙️" label="Settings" desc="API keys and configuration" />}
+            </div>
+            <ResizeHandle onResize={resizeInbox} />
+          </>
+        )}
 
         {/* Center */}
         <div className="flex-1 flex flex-col overflow-hidden min-h-0" style={{ minWidth: 300 }}>
-          {isCommentsMode ? (
+          {isUnrepliedMode ? (
+            <UnrepliedPanel igRate={igRate} onSelectPost={(id) => { setSelectedMediaId(id); setActivity('comments') }} />
+          ) : isCommentsMode ? (
             <CommentsThread mediaId={selectedMediaId} media={mediaList} />
           ) : (
             <>
@@ -176,8 +181,8 @@ export default function App() {
           )}
         </div>
 
-        {/* Claude panel — hidden in comments mode (Claude is inline per comment) */}
-        {!isCommentsMode && (
+        {/* Claude panel — hidden in comments and unreplied modes */}
+        {!isCommentsMode && !isUnrepliedMode && (
           <>
             <ResizeHandle onResize={resizeClaude} />
             <div style={{ width: claudeWidth, minWidth: claudeWidth, maxWidth: claudeWidth }}>

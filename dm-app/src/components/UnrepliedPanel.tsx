@@ -4,13 +4,25 @@ import EmojiButton from './EmojiButton'
 
 const OWN_USERNAME = 'temayujin'
 const FETCH_DELAY_MS = 350
+const OWN_IDS_KEY = 'tp_own_comment_ids'
+
+function loadOwnIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(OWN_IDS_KEY) || '[]')) }
+  catch { return new Set() }
+}
 
 interface IgRate { used: number; limit: number; minutesLeft: number }
 
 interface UnrepliedComment {
   comment: Comment
   post: MediaItem
+  replied?: boolean  // marked after sending reply
+  hidden?: boolean   // manually hidden
 }
+
+// Module-level cache — survives tab switches, resets only on [ load ]
+let cachedItems: UnrepliedComment[] = []
+let cacheLoaded = false
 
 function RateBar({ rate }: { rate: IgRate | null }) {
   if (!rate) return null
@@ -77,10 +89,11 @@ function formatTime(iso: string) {
 interface CommentItemProps {
   item: UnrepliedComment
   onReplied: (commentId: string) => void
+  onHide: (commentId: string) => void
 }
 
-function CommentItem({ item, onReplied }: CommentItemProps) {
-  const { comment, post } = item
+function CommentItem({ item, onReplied, onHide }: CommentItemProps) {
+  const { comment, post, replied } = item
   const [replyText, setReplyText] = useState('')
   const [replyOpen, setReplyOpen] = useState(false)
   const [sending, setSending] = useState(false)
@@ -98,6 +111,7 @@ function CommentItem({ item, onReplied }: CommentItemProps) {
     try {
       await api.replyToComment(post.id, replyText.trim(), comment.id, comment.username || undefined)
       onReplied(comment.id)
+      setReplyOpen(false)
     } catch {
       setSending(false)
     }
@@ -117,7 +131,13 @@ function CommentItem({ item, onReplied }: CommentItemProps) {
   }
 
   return (
-    <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
+    <div style={{
+      padding: '10px 12px',
+      borderBottom: '1px solid var(--border)',
+      background: replied ? 'rgba(200, 169, 110, 0.07)' : 'transparent',
+      borderLeft: replied ? '2px solid var(--accent)' : '2px solid transparent',
+      transition: 'background 0.3s',
+    }}>
       {/* Comment */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         <div
@@ -137,25 +157,38 @@ function CommentItem({ item, onReplied }: CommentItemProps) {
             <span style={{ fontSize: 10, color: 'var(--hack-comment-color, var(--muted-foreground))' }}>
               {formatTime(comment.timestamp)}
             </span>
+            {replied && (
+              <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>✓ replied</span>
+            )}
           </div>
-          <p style={{ fontSize: 12, color: 'var(--foreground)', lineHeight: 1.4, margin: 0 }}>{comment.text}</p>
+          <p style={{ fontSize: 12, color: 'var(--foreground)', lineHeight: 1.4, margin: 0, opacity: replied ? 0.6 : 1 }}>{comment.text}</p>
         </div>
       </div>
 
       {/* Actions */}
       {!replyOpen ? (
         <div style={{ display: 'flex', gap: 10, paddingLeft: 36 }}>
+          {!replied && (
+            <>
+              <button
+                onClick={() => setReplyOpen(true)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <ReplyIcon /> reply
+              </button>
+              <button
+                onClick={() => { setReplyOpen(true); handleAskClaude() }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <SparkleIcon /> claude
+              </button>
+            </>
+          )}
           <button
-            onClick={() => setReplyOpen(true)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+            onClick={() => onHide(comment.id)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', fontSize: 11, padding: 0, opacity: 0.5 }}
           >
-            <ReplyIcon /> reply
-          </button>
-          <button
-            onClick={() => { setReplyOpen(true); handleAskClaude() }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 11, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
-          >
-            <SparkleIcon /> claude
+            hide
           </button>
         </div>
       ) : (
@@ -234,9 +267,10 @@ interface UnrepliedPanelProps {
 }
 
 export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelProps) {
-  const [items, setItems] = useState<UnrepliedComment[]>([])
+  // Init from module-level cache so state survives tab switches
+  const [items, setItems] = useState<UnrepliedComment[]>(() => cachedItems)
   const [loading, setLoading] = useState(false)
-  const [loaded, setLoaded] = useState(false)
+  const [loaded, setLoaded] = useState(cacheLoaded)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
 
   const isBlocked = igRate && (igRate.used / igRate.limit) >= 0.7
@@ -244,8 +278,11 @@ export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelP
   const loadUnreplied = async () => {
     if (loading || isBlocked) return
     setLoading(true)
-    setItems([])
     setLoaded(false)
+    cachedItems = []
+    setItems([])
+
+    const ownIds = loadOwnIds()
 
     try {
       const media = await api.media()
@@ -259,12 +296,18 @@ export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelP
         try {
           const comments = await api.comments(post.id)
           for (const c of comments) {
-            const hasOwnReply = c.replies.some(r => r.isOwn || r.username === OWN_USERNAME)
-            if (!c.isOwn && c.username !== OWN_USERNAME && !hasOwnReply) {
+            // Skip own top-level comments
+            if (c.isOwn || c.username === OWN_USERNAME || ownIds.has(c.id)) continue
+            // Check if any reply is from us (username, isOwn flag, or localStorage ID)
+            const hasOwnReply = c.replies.some(
+              r => r.isOwn || r.username === OWN_USERNAME || ownIds.has(r.id)
+            )
+            if (!hasOwnReply) {
               result.push({ comment: c, post })
             }
           }
           setProgress({ done: i + 1, total: withComments.length })
+          cachedItems = [...result]
           setItems([...result])
         } catch {
           // skip failed post
@@ -277,21 +320,38 @@ export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelP
       // ignore
     } finally {
       setLoading(false)
+      cacheLoaded = true
       setLoaded(true)
     }
   }
 
   const handleReplied = (commentId: string) => {
-    setItems(prev => prev.filter(i => i.comment.id !== commentId))
+    setItems(prev => {
+      const next = prev.map(i => i.comment.id === commentId ? { ...i, replied: true } : i)
+      cachedItems = next
+      return next
+    })
   }
 
-  // Group by post
-  const grouped = items.reduce((acc, item) => {
-    const key = item.post.id
-    if (!acc[key]) acc[key] = { post: item.post, comments: [] }
-    acc[key].comments.push(item)
-    return acc
-  }, {} as Record<string, { post: MediaItem; comments: UnrepliedComment[] }>)
+  const handleHide = (commentId: string) => {
+    setItems(prev => {
+      const next = prev.filter(i => i.comment.id !== commentId)
+      cachedItems = next
+      return next
+    })
+  }
+
+  const unrepliedCount = items.filter(i => !i.replied).length
+
+  // Group by post (exclude hidden)
+  const grouped = items
+    .filter(i => !i.hidden)
+    .reduce((acc, item) => {
+      const key = item.post.id
+      if (!acc[key]) acc[key] = { post: item.post, comments: [] }
+      acc[key].comments.push(item)
+      return acc
+    }, {} as Record<string, { post: MediaItem; comments: UnrepliedComment[] }>)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--background)' }}>
@@ -301,8 +361,8 @@ export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelP
           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>
             New Comments
             {loaded && items.length > 0 && (
-              <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--accent)', fontWeight: 400 }}>
-                {items.length}
+              <span style={{ marginLeft: 6, fontSize: 11, color: unrepliedCount > 0 ? 'var(--accent)' : 'var(--status-client)', fontWeight: 400 }}>
+                {unrepliedCount > 0 ? unrepliedCount : '✓ all replied'}
               </span>
             )}
           </span>
@@ -372,7 +432,7 @@ export default function UnrepliedPanel({ onSelectPost, igRate }: UnrepliedPanelP
             </button>
 
             {comments.map(item => (
-              <CommentItem key={item.comment.id} item={item} onReplied={handleReplied} />
+              <CommentItem key={item.comment.id} item={item} onReplied={handleReplied} onHide={handleHide} />
             ))}
           </div>
         ))}
