@@ -10,6 +10,7 @@ import ReelsPanel from './components/ReelsPanel'
 import CommentsThread from './components/CommentsThread'
 import { api, MediaItem } from './api'
 import StylePanel from './components/StylePanel'
+import UnrepliedPanel from './components/UnrepliedPanel'
 
 function PlaceholderPanel({ icon, label, desc }: { icon: string; label: string; desc: string }) {
   return (
@@ -32,6 +33,7 @@ export default function App() {
   const [inboxWidth, setInboxWidth] = useState(240)
   const [claudeWidth, setClaudeWidth] = useState(300)
   const [serverOnline, setServerOnline] = useState(false)
+  const [igRate, setIgRate] = useState<{ used: number; limit: number; minutesLeft: number } | null>(null)
   const [claudeTrigger, setClaudeTrigger] = useState<{ conversationId: string | null; messages: any[]; ts: number } | null>(null)
   const [dialogRefreshKey, setDialogRefreshKey] = useState(0)
   const [inboxRefreshKey, setInboxRefreshKey] = useState(0)
@@ -46,7 +48,7 @@ export default function App() {
 
   useEffect(() => {
     api.health()
-      .then(h => setServerOnline(h.ok && h.connected))
+      .then(h => { setServerOnline(h.ok && h.connected); if (h.igRate) setIgRate(h.igRate) })
       .catch(() => setServerOnline(false))
   }, [])
 
@@ -143,6 +145,7 @@ export default function App() {
         <div style={{ width: inboxWidth, minWidth: inboxWidth, maxWidth: inboxWidth }}>
           {activity === 'inbox' && <Inbox activeId={activeTabId} onSelect={openTab} serverOnline={serverOnline} refreshKey={inboxRefreshKey} />}
           {activity === 'comments' && <ReelsPanel activeId={selectedMediaId} onSelect={setSelectedMediaId} />}
+          {activity === 'unreplied' && <UnrepliedPanel igRate={igRate} onSelectPost={(id) => { setSelectedMediaId(id); setActivity('comments') }} />}
           {activity === 'clients' && <Inbox activeId={activeTabId} onSelect={openTab} serverOnline={serverOnline} refreshKey={inboxRefreshKey} defaultFilter="client" />}
           {activity === 'stats' && <PlaceholderPanel icon="📊" label="Stats" desc="Replies today, avg response time" />}
           {activity === 'style' && <StylePanel />}

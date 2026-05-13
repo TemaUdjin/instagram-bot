@@ -83,7 +83,7 @@ async function del<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  health: () => get<{ ok: boolean; connected: boolean; selfId: string; conversations: number }>('/health'),
+  health: () => get<{ ok: boolean; connected: boolean; selfId: string; conversations: number; igRate?: { used: number; limit: number; minutesLeft: number } }>('/health'),
   conversations: () => get<ConversationSummary[]>('/conversations'),
   messages: (id: string) => get<ConversationDetail>(`/conversations/${id}/messages`),
   send: (id: string, text: string) => post<{ ok: boolean }>(`/conversations/${id}/send`, { text }),

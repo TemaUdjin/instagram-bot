@@ -41,7 +41,23 @@ loadConversations()
 
 // ─── Instagram API helpers ───────────────────────────────────────
 
+// IG API rate limit tracking (200 calls/hour per token)
+const IG_RATE_LIMIT = 200
+let igCallCount = 0
+let igRateWindowStart = Date.now()
+
+function igRateStats() {
+  const elapsed = Date.now() - igRateWindowStart
+  if (elapsed >= 3600000) {
+    igCallCount = 0
+    igRateWindowStart = Date.now()
+  }
+  const minutesLeft = Math.ceil((3600000 - (Date.now() - igRateWindowStart)) / 60000)
+  return { used: igCallCount, limit: IG_RATE_LIMIT, minutesLeft }
+}
+
 async function igGet(endpoint, params = {}) {
+  igCallCount++
   const res = await axios.get(`${IG_API}/${endpoint}`, {
     params: { access_token: TOKEN, ...params }
   })
@@ -164,7 +180,8 @@ app.get('/api/health', (req, res) => {
     ok: true,
     connected: !!selfId,
     selfId,
-    conversations: Object.keys(conversationsCache).length
+    conversations: Object.keys(conversationsCache).length,
+    igRate: igRateStats()
   })
 })
 
