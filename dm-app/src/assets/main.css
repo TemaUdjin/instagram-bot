@@ -75,9 +75,9 @@
   --tabbar-bg: #181818;
 
   /* Message bubbles — refined */
-  --msg-outgoing-bg: #131313;
-  --msg-incoming-bg: #1a1f2e;
-  --msg-incoming-color: #a8bcd0;
+  --msg-outgoing-bg: #1c1c1c;
+  --msg-incoming-bg: #252526;
+  --msg-incoming-color: #d4d4d4;
   --msg-outgoing-color: #c8c8c8;
   --msg-time: #6a9955;
   --msg-username: #9cdcfe;
