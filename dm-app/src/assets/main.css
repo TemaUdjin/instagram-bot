@@ -45,7 +45,7 @@
   --status-ignored: #4e4e52;
   --activity-bg: #181818;
   --tabbar-bg: #181818;
-  --msg-outgoing-bg: #252526;
+  --msg-outgoing-bg: #1c1c1c;
   --msg-incoming-bg: #252526;
   --msg-incoming-color: var(--foreground);
   --msg-outgoing-color: var(--foreground);
