@@ -85,7 +85,7 @@ export default function StylePanel() {
       <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="text-sm font-semibold mb-0.5" style={{ color: 'var(--foreground)' }}>Claude Skill</div>
         <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-          Правила которые Claude всегда использует при генерации ответов
+          Rules Claude always uses when generating replies
         </div>
       </div>
 
@@ -100,7 +100,7 @@ export default function StylePanel() {
             border: '1px solid var(--border)',
             fontFamily: 'inherit'
           }}
-          placeholder="Опиши стиль, методику, правила..."
+          placeholder="Describe your style, methodology, rules..."
           spellCheck={false}
         />
         <button
@@ -115,7 +115,7 @@ export default function StylePanel() {
           {saved ? '✓ Saved' : 'Save skill'}
         </button>
         <p className="text-xs text-center" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
-          Claude использует этот промпт при каждом запросе
+          Claude uses this prompt on every request
         </p>
       </div>
     </div>

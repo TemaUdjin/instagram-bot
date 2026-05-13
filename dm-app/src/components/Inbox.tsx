@@ -4,10 +4,10 @@ import { api, ConversationSummary } from '../api'
 export type ConversationStatus = 'new' | 'replied' | 'client' | 'ignored' | 'followup'
 
 const MOCK: ConversationSummary[] = [
-  { id: '1', name: 'Анна Петрова',   username: 'anna.petrova',  avatar: null, lastMessage: 'Хочу узнать про курс по гибкости...', waitMinutes: 2,    status: 'new',      unread: 2 },
-  { id: '2', name: 'Михаил Козлов',  username: 'mkozlov',       avatar: null, lastMessage: 'Спасибо за ответ!',                  waitMinutes: 65,   status: 'replied',  unread: 0 },
-  { id: '3', name: 'Ирина Соколова', username: 'irina.s',       avatar: null, lastMessage: 'Записалась на пробный урок',         waitMinutes: 180,  status: 'client',   unread: 0 },
-  { id: '4', name: 'Дмитрий Орлов',  username: 'dmitry.orlov',  avatar: null, lastMessage: 'Окей понял',                         waitMinutes: 1440, status: 'followup', unread: 0 },
+  { id: '1', name: 'Sarah Johnson',  username: 'sarah.j',       avatar: null, lastMessage: 'Interested in the flexibility course...', waitMinutes: 2,    status: 'new',      unread: 2 },
+  { id: '2', name: 'Mike Chen',      username: 'mkchen',        avatar: null, lastMessage: 'Thanks for the reply!',                  waitMinutes: 65,   status: 'replied',  unread: 0 },
+  { id: '3', name: 'Emma Davis',     username: 'emma.d',        avatar: null, lastMessage: 'Signed up for a trial session',           waitMinutes: 180,  status: 'client',   unread: 0 },
+  { id: '4', name: 'Alex Turner',    username: 'alex.turner',   avatar: null, lastMessage: 'Got it, thanks',                         waitMinutes: 1440, status: 'followup', unread: 0 },
 ]
 
 const STATUS_DOT: Record<ConversationStatus, string> = {
@@ -19,9 +19,9 @@ const STATUS_DOT: Record<ConversationStatus, string> = {
 }
 
 function formatWait(m: number) {
-  if (m < 60) return `${m}м`
-  if (m < 1440) return `${Math.floor(m / 60)}ч`
-  return `${Math.floor(m / 1440)}д`
+  if (m < 60) return `${m}m`
+  if (m < 1440) return `${Math.floor(m / 60)}h`
+  return `${Math.floor(m / 1440)}d`
 }
 
 function waitColor(m: number) {
@@ -199,7 +199,7 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
                         className="rounded px-1.5 py-0.5 text-xs transition-colors"
                         style={{ background: 'var(--muted)', color: 'var(--muted-foreground)', cursor: 'pointer' }}
                       >
-                        скрыть
+                        hide
                       </button>
                     )}
                     <span className="text-xs font-medium" style={{ color: waitColor(conv.waitMinutes) }}>
@@ -239,7 +239,7 @@ export default function Inbox({ activeId, onSelect, serverOnline, refreshKey }: 
                 className="text-xs px-2 py-0.5 rounded-md"
                 style={{ background: 'var(--background)', color: 'var(--accent)', cursor: 'pointer', border: '1px solid var(--border)' }}
               >
-                Вернуть
+                Restore
               </button>
             </div>
           ))}

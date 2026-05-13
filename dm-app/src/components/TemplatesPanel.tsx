@@ -267,13 +267,13 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Поиск по шаблонам..."
+          placeholder="Search templates..."
           className="flex-1 px-2 py-1.5 rounded-lg outline-none text-xs"
           style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
         />
         <button
           onClick={() => setAdding(a => !a)}
-          title="Добавить шаблон"
+          title="Add template"
           className="px-2 py-1.5 rounded-lg flex items-center gap-1 text-xs font-medium transition-all"
           style={{
             background: adding ? 'var(--accent)' : 'var(--muted)',
@@ -297,7 +297,7 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
             cursor: 'pointer',
           }}
         >
-          Все
+          All
         </button>
         {allTags.map(tag => (
           <button
@@ -321,7 +321,7 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
           <textarea
             value={newQ}
             onChange={e => setNewQ(e.target.value)}
-            placeholder="Когда использовать? (необязательно)"
+            placeholder="When to use? (optional)"
             rows={1}
             className="resize-none rounded-lg px-2 py-1.5 text-xs outline-none"
             style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
@@ -329,7 +329,7 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
           <textarea
             value={newA}
             onChange={e => setNewA(e.target.value)}
-            placeholder="Текст ответа *"
+            placeholder="Reply text *"
             rows={3}
             className="resize-none rounded-lg px-2 py-1.5 text-xs outline-none"
             style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
@@ -337,7 +337,7 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
           <input
             value={newTagStr}
             onChange={e => setNewTagStr(e.target.value)}
-            placeholder="Теги через запятую: цена, начало"
+            placeholder="Tags, comma-separated: price, start"
             className="rounded-lg px-2 py-1.5 text-xs outline-none"
             style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
           />
@@ -348,14 +348,14 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
               className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
               style={{ background: 'var(--accent)', color: '#1a1610', cursor: newA.trim() ? 'pointer' : 'default', opacity: newA.trim() ? 1 : 0.4 }}
             >
-              Сохранить
+              Save
             </button>
             <button
               onClick={() => setAdding(false)}
               className="px-3 py-1.5 rounded-lg text-xs transition-all"
               style={{ background: 'var(--muted)', color: 'var(--muted-foreground)', cursor: 'pointer' }}
             >
-              Отмена
+              Cancel
             </button>
           </div>
         </div>
@@ -366,7 +366,7 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
         {visible.length === 0 && (
           <div className="flex flex-col items-center justify-center h-32 gap-2 text-center">
             <p className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>
-              {templates.length === 0 ? 'Нет шаблонов — добавь первый' : 'Ничего не найдено'}
+              {templates.length === 0 ? 'No templates — add your first' : 'Nothing found'}
             </p>
           </div>
         )}
@@ -406,7 +406,7 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
                 <textarea
                   value={editQ}
                   onChange={e => setEditQ(e.target.value)}
-                  placeholder="Когда использовать?"
+                  placeholder="When to use?"
                   rows={1}
                   className="resize-none rounded-lg px-2 py-1.5 text-xs outline-none"
                   style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
@@ -421,16 +421,16 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
                 <input
                   value={editTagStr}
                   onChange={e => setEditTagStr(e.target.value)}
-                  placeholder="Теги через запятую"
+                  placeholder="Tags, comma-separated"
                   className="rounded-lg px-2 py-1.5 text-xs outline-none"
                   style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
                 />
                 <div className="flex gap-2">
                   <button onClick={() => saveEdit(t.id)} className="flex-1 py-1.5 rounded-lg text-xs font-medium" style={{ background: 'var(--accent)', color: '#1a1610', cursor: 'pointer' }}>
-                    Сохранить
+                    Save
                   </button>
                   <button onClick={() => setEditingId(null)} className="px-3 py-1.5 rounded-lg text-xs" style={{ background: 'var(--muted)', color: 'var(--muted-foreground)', cursor: 'pointer' }}>
-                    Отмена
+                    Cancel
                   </button>
                 </div>
               </div>
@@ -444,7 +444,7 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
                   {/* Copy */}
                   <button
                     onClick={() => copy(t.id, t.answer)}
-                    title="Скопировать"
+                    title="Copy"
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all"
                     style={{
                       background: copiedId === t.id ? 'rgba(100,200,100,0.15)' : 'var(--muted)',
@@ -459,7 +459,7 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
                   {/* Edit */}
                   <button
                     onClick={() => startEdit(t)}
-                    title="Редактировать шаблон"
+                    title="Edit template"
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all"
                     style={{ background: 'var(--muted)', color: 'var(--muted-foreground)', cursor: 'pointer', border: '1px solid var(--border)' }}
                   >
@@ -469,7 +469,7 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
                   {/* Delete */}
                   <button
                     onClick={() => deleteTemplate(t.id)}
-                    title="Удалить"
+                    title="Delete"
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all"
                     style={{ background: 'var(--muted)', color: 'var(--muted-foreground)', cursor: 'pointer', border: '1px solid var(--border)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#e05252' }}
@@ -484,7 +484,7 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
                     className="ml-auto px-3 py-1 rounded-lg text-xs font-medium transition-all"
                     style={{ background: 'var(--accent)', color: '#1a1610', cursor: 'pointer' }}
                   >
-                    Использовать →
+                    Use →
                   </button>
                 </div>
               </>
@@ -496,7 +496,7 @@ export default function TemplatesPanel({ onUse }: TemplatesPanelProps) {
       {/* Footer count */}
       <div className="px-3 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
         <span className="text-xs" style={{ color: 'var(--muted-foreground)', opacity: 0.5 }}>
-          {visible.length} из {templates.length} шаблонов
+          {visible.length} of {templates.length} templates
         </span>
       </div>
     </div>

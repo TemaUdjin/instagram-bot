@@ -27,9 +27,9 @@ const INITIAL_MESSAGES: Message[] = [
     role: 'claude',
     type: 'suggestions',
     suggestions: [
-      'Анна, с сидячей работой и болью в спине — это как раз то, с чем мы работаем в первую очередь. Начнём с мобильности позвоночника. Хочешь, пришлю пробный урок?',
-      'Отлично! Боль в спине от сидячей работы — очень распространённая история. У нас есть специальная программа для начинающих с акцентом на позвоночник. Когда удобно начать?',
-      'Анна, спина — это наш приоритет в базовом уровне. Покажу тебе 3 движения, которые снимут напряжение уже после первой тренировки. Попробуем?'
+      'Back pain from sitting is exactly what we work on first. We\'ll start with spine mobility. Want me to send you a trial session?',
+      'Great — back pain from a desk job is very common. There\'s a beginner program focused on the spine. When would be a good time to start?',
+      'The back is our priority at the foundation level. I\'ll show you 3 movements that release tension after the very first session. Shall we try?'
     ]
   }
 ]
@@ -304,7 +304,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
               onClick={() => { setTab('templates'); setMatchHint(null) }}
               style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--accent)', cursor: 'pointer', background: 'none', border: 'none' }}
             >
-              Посмотреть →
+              View →
             </button>
             <button
               onClick={() => setMatchHint(null)}
@@ -457,7 +457,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
         >
           {/* Attach image */}
           <label
-            title="Прикрепить фото или скриншот"
+            title="Attach photo or screenshot"
             className="p-1 rounded-lg shrink-0 transition-colors"
             style={{ color: 'var(--muted-foreground)', cursor: 'pointer' }}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}

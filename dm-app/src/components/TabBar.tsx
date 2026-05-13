@@ -26,7 +26,7 @@ export default function TabBar({ tabs, activeId, onSelect, onClose }: TabBarProp
       style={{ borderColor: 'var(--border)', background: 'var(--tabbar-bg)' }}
     >
       <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-        Открой диалог слева →
+        Open a conversation →
       </span>
     </div>
   )

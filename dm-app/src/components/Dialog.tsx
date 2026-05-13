@@ -27,9 +27,9 @@ function NoteIcon() {
 }
 
 const MOCK_MESSAGES = [
-  { type: 'incoming', text: 'Здравствуйте! Хочу узнать подробнее о курсе по гибкости. Мне 45 лет, никогда не занималась йогой.', time: '14:20' },
-  { type: 'outgoing', text: 'Привет, Анна! Отлично что написала — как раз для твоего возраста и уровня есть прекрасная точка входа. Расскажи, есть ли какие-то ограничения или травмы?', time: '14:35' },
-  { type: 'incoming', text: 'Травм нет, но спина иногда беспокоит. Сидячая работа.', time: '14:38' },
+  { type: 'incoming', text: 'Hi! I\'d like to learn more about the flexibility course. I\'m 45, never done yoga before.', time: '14:20' },
+  { type: 'outgoing', text: 'Hey! Great that you reached out — there\'s a perfect entry point for your age and level. Do you have any limitations or injuries?', time: '14:35' },
+  { type: 'incoming', text: 'No injuries, but my back bothers me sometimes. Desk job.', time: '14:38' },
 ]
 
 interface DialogProps {
@@ -116,7 +116,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
     addMessageOptimistically(pendingSentText.text)
   }, [pendingSentText?.ts])
 
-  // Prefill input from template "Использовать"
+  // Prefill input from template "Use"
   useEffect(() => {
     if (!prefillText?.text) return
     setText(prefillText.text)
@@ -196,7 +196,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
             </button>
             <button
               onClick={() => setShowNote(n => !n)}
-              title="Заметка о клиенте"
+              title="Client note"
               className="p-1.5 rounded-lg transition-colors"
               style={{ color: showNote ? 'var(--accent)' : 'var(--muted-foreground)', background: showNote ? 'var(--muted)' : 'transparent', cursor: 'pointer' }}
             >
@@ -204,7 +204,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
             </button>
             <button
               onClick={() => setFollowupSet(f => !f)}
-              title="Follow-up через 3 дня"
+              title="Follow-up in 3 days"
               className="p-1.5 rounded-lg transition-colors"
               style={{ color: followupSet ? '#f59e0b' : 'var(--muted-foreground)', background: followupSet ? 'var(--muted)' : 'transparent', cursor: 'pointer' }}
             >
@@ -227,7 +227,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
             <textarea
               value={note}
               onChange={e => setNote(e.target.value)}
-              placeholder="Заметки о клиенте (только для тебя)..."
+              placeholder="Notes about client (only visible to you)..."
               className="w-full resize-none outline-none rounded-lg px-3 py-2"
               rows={2}
               style={{ fontSize: 11, background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
@@ -247,7 +247,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
                 className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-1"
                 style={{ background: 'var(--avatar-bg)', color: 'var(--avatar-text)' }}
               >
-                А
+                A
               </div>
             )}
 

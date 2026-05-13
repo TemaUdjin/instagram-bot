@@ -338,7 +338,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
                       onClick={() => setShowEmoji(v => !v)}
                       className="text-base shrink-0 transition-all"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: showEmoji ? 'var(--accent)' : 'var(--muted-foreground)', padding: 0, lineHeight: 1 }}
-                      title="Эмодзи"
+                      title="Emoji"
                     >
                       🙂
                     </button>
@@ -346,7 +346,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, onDeleted, onReply
                       ref={textareaRef}
                       value={replyText}
                       onChange={e => setReplyText(e.target.value)}
-                      placeholder={comment.username ? `Reply @${comment.username}...` : 'Написать ответ...'}
+                      placeholder={comment.username ? `Reply @${comment.username}...` : 'Write a reply...'}
                       rows={1}
                       className="flex-1 resize-none bg-transparent text-sm outline-none leading-relaxed"
                       style={{ color: 'var(--foreground)' }}
