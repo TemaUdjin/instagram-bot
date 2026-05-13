@@ -89,6 +89,10 @@
   font-size: 12px;
 }
 
+.hack .msg-bubble {
+  font-size: 0.75rem;
+}
+
 .hack body,
 .hack * {
   font-family: 'Geist Mono Variable', 'SF Mono', 'Fira Code', ui-monospace, monospace !important;

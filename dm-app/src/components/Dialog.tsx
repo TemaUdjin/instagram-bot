@@ -252,7 +252,7 @@ export default function Dialog({ conversationId, refreshKey, pendingSentText, pr
             )}
 
             <div
-              className="max-w-sm rounded-2xl text-xs leading-relaxed"
+              className="msg-bubble max-w-sm rounded-2xl text-sm leading-relaxed"
               style={
                 msg.type === 'outgoing'
                   ? {
