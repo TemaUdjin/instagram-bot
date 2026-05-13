@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { api, Comment, MediaItem } from '../api'
+import EmojiButton from './EmojiButton'
 
 function HeartIcon({ filled }: { filled?: boolean }) {
   return (
@@ -70,52 +71,7 @@ function CloseIcon() {
   )
 }
 
-const EMOJIS = [
-  '😊','😂','😅','🤔','😍','🙏','🔥','❤️','💪','👋',
-  '👍','👏','🙌','💯','✨','🌟','💫','⚡','🎯','🏆',
-  '😎','🤩','💥','🫶','🤝','👊','💡','🎉','🙂','😤',
-]
-
 const OWN_USERNAME = 'temayujin'
-
-function EmojiPicker({ onSelect, onClose }: { onSelect: (e: string) => void; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [onClose])
-
-  return (
-    <div
-      ref={ref}
-      className="absolute bottom-full mb-1 left-0 z-50 rounded-xl p-2 grid"
-      style={{
-        gridTemplateColumns: 'repeat(10, 1fr)',
-        gap: 2,
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-        width: 280,
-      }}
-    >
-      {EMOJIS.map(emoji => (
-        <button
-          key={emoji}
-          onClick={() => { onSelect(emoji); onClose() }}
-          className="text-base rounded-lg flex items-center justify-center transition-all"
-          style={{ width: 26, height: 26, cursor: 'pointer', background: 'none', border: 'none', fontSize: 16 }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--muted)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        >
-          {emoji}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 function formatTime(iso: string) {
   const d = new Date(iso)
@@ -445,24 +401,16 @@ function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, 
                 )}
 
                 <div className="relative">
-                  {showEmoji && (
-                    <EmojiPicker
-                      onSelect={insertEmoji}
-                      onClose={() => setShowEmoji(false)}
-                    />
-                  )}
                   <div
                     className="flex items-end gap-2 px-3 py-2 rounded-xl"
                     style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}
                   >
-                    <button
-                      onClick={() => setShowEmoji(v => !v)}
-                      className="text-base shrink-0 transition-all"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: showEmoji ? 'var(--accent)' : 'var(--muted-foreground)', padding: 0, lineHeight: 1 }}
-                      title="Emoji"
-                    >
-                      🙂
-                    </button>
+                    <EmojiButton
+                      show={showEmoji}
+                      onToggle={() => setShowEmoji(v => !v)}
+                      onClose={() => setShowEmoji(false)}
+                      onSelect={insertEmoji}
+                    />
                     <textarea
                       ref={textareaRef}
                       value={replyText}

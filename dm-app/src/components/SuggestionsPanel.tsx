@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import TemplatesPanel, { loadTemplates, Template } from './TemplatesPanel'
+import EmojiButton from './EmojiButton'
 
 const MODELS = [
   { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', desc: 'Fast · smart' },
@@ -63,7 +64,22 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
   const [sending, setSending] = useState(false)
   const [suggestionTranslations, setSuggestionTranslations] = useState<Record<string, string | null>>({})
   const [translatingKey, setTranslatingKey] = useState<string | null>(null)
+  const [showEmoji, setShowEmoji] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  const insertEmoji = useCallback((emoji: string) => {
+    const el = inputRef.current
+    if (!el) { setInput(t => t + emoji); return }
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const newText = input.slice(0, start) + emoji + input.slice(end)
+    setInput(newText)
+    setTimeout(() => {
+      el.focus()
+      el.setSelectionRange(start + emoji.length, start + emoji.length)
+    }, 0)
+  }, [input])
 
   const usedPct = Math.round((MOCK_USED / CONTEXT_LIMIT) * 100)
   const barColor = usedPct > 80 ? '#e05252' : usedPct > 50 ? 'var(--accent)' : 'var(--status-client)'
@@ -496,6 +512,12 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
           className="flex items-end gap-2 px-3 py-2 rounded-xl"
           style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}
         >
+          <EmojiButton
+            show={showEmoji}
+            onToggle={() => setShowEmoji(v => !v)}
+            onClose={() => setShowEmoji(false)}
+            onSelect={insertEmoji}
+          />
           {/* Attach image */}
           <label
             title="Attach photo or screenshot"
@@ -522,6 +544,7 @@ export default function SuggestionsPanel({ conversationId, onSelect, onSent, onU
           </label>
 
           <textarea
+            ref={inputRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Ask Claude to revise..."
