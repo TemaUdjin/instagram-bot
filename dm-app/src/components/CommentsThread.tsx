@@ -409,7 +409,7 @@ function CommentRow({ comment, mediaId, postCaption, isReply, replyToCommentId, 
                         style={{
                           background: replyText === s ? 'var(--card)' : 'var(--muted)',
                           border: replyText === s ? '1px solid var(--accent)' : '1px solid var(--border)',
-                          color: 'var(--foreground)',
+                          color: 'var(--claude-text, var(--foreground))',
                           cursor: 'pointer'
                         }}
                       >
